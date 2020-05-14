@@ -19,6 +19,9 @@ import innvestigate as inn
 import fun_c as f 
 import numpy as np
 
+import matplotlib.pyplot as plt
+
+
 
 #%%
 # set parameters:
