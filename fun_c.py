@@ -98,8 +98,8 @@ def Shorten_sentences(data_X , data_y , max_length):
     return X_short , y_short , indexes
 
 
-# shamelessly stolen function for plotting a heatmap with the relevancy scores, from iNNvestigate github repo
-def plot_text_heatmap(words, scores, title="", width=10, height=0.2, verbose=0, max_word_per_line=20):
+# shamelessly borrowed function for plotting a heatmap with the relevancy scores, from iNNvestigate github repo
+def plot_text_heatmap(words, scores, title="", width=10, height=0.2, verbose=0, max_word_per_line=20, savefig = 0):
     fig = plt.figure(figsize=(width, height))
     
     ax = plt.gca()
@@ -153,6 +153,9 @@ def plot_text_heatmap(words, scores, title="", width=10, height=0.2, verbose=0, 
 
     if verbose == 0:
         ax.axis('off')
+        
+    return fig 
+
 
 
 

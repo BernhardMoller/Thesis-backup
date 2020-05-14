@@ -45,6 +45,10 @@ y = data.iloc[:,0]
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=42)
 
+X_train_indexes = X_train.index
+X_test_indexes = X_test.index
+
+
 X_train_split = f.Split_sentences(X_train)
 X_test_split = f.Split_sentences(X_test)
 
@@ -125,17 +129,41 @@ new_mod.compile('Adam', loss = 'mean_squared_error')
 
 
 
-#%% test so that the outputs of the split models are consistent and compatible with eachother
+#%% sort all the test data based on if their predictions are fp fn or tp tn 
+indexes_tp = []
+indexes_tn = []
+indexes_fp = []
+indexes_fn = []
 
-for target , i in y_test:
-    print(i)
+score = model.predict_classes(X_test_pad)
+confusion = score - np.expand_dims(y_test,1)
+for i in range(len(y_test)):
+    if confusion[i] == 1: # false positive 
+        indexes_fp.append(i)
+    elif confusion[i] == -1: # false negative 
+        indexes_fn.append(i)
+    else: # sort rest if their target is true or false 
+        if y_test.iloc[i]== 1:
+            indexes_tp.append(i)
+        else:
+            indexes_tn.append(i)
+                
+
 
 
 #%%
 # test to run one input sentence first through the separate embedding layer and then the rest of the model. 
-indexes = [21 , 100 , 1400]
+intresting_data = [21]
+indexes = intresting_data
+
+# nr_plots = 2 
+# indexes = indexes_tn[:nr_plots]
+
 for index in indexes:
     sent = X_test_pad[index]
+    
+    if all(v == 0 for v in sent): # found some indexes which the sentence is all zero (no words are in the dictionary).
+        continue                  # We just skip these examples for now   
     one_sent = np.expand_dims(sent,0)
     
     test_target = y_test.iloc[index]
@@ -164,5 +192,6 @@ for index in indexes:
     score_words = lrp_result_seq[0][0:np.shape(text_split)[1]]
     
     # plot heatmap and prediction results
-    f.plot_text_heatmap(text_plot, score_words)
+    f.plot_text_heatmap(text_plot, score_words, verbose = 2 ,title = ['Sentence available at global index : ', str(X_test_indexes[index])])
     print('target =', test_target , 'predicted =' ,y_hat[0][0])
+    
