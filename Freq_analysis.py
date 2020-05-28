@@ -119,6 +119,12 @@ plt.scatter(y = occurency[0,skewed_indexes] , x = skewed_indexes, s = 1 , c= 're
 plt.ylabel("comparative occurence frequency between + & - class")
 plt.xlabel("Tokenizer index")
 
+tmp_skewed = skewed_words.sort()
+with open("filter_words_freq.txt", "w") as file:
+    for s in tmp_skewed:
+        file.write(str(s) +"\n")
+
+
 
 # plt.figure()
 # sns.distplot(occurency)
@@ -225,10 +231,16 @@ for i in range(len(skewed_indexes_tfidf)):
 # plots 
 plt.figure()
 plt.scatter(y=tfidf_score , x = range(tfidf_score.shape[1]) , s = 1)
-plt.scatter(y = comp_tfidf[0,skewed_indexes_tfidf] , x = skewed_indexes_tfidf, s = 1 , c= 'red')
+plt.scatter(y = tfidf_score[0,skewed_indexes_tfidf] , x = skewed_indexes_tfidf, s = 1 , c= 'red')
 plt.ylabel("Tf-idf score")
 plt.xlabel("Tf-idf tokenizer word index")
  
+tmp_skewed = skewed_words_tfidf.sort()
+
+with open("filter_words_tfidf.txt", "w") as file:
+    for s in tmp_skewed:
+        file.write(str(s) +"\n")
+
 # plt.figure()
 # sns.distplot(tfidf_score[0])
 # plt.ylabel("Dist")
@@ -251,22 +263,22 @@ print(len(in_both), 'of', len(skewed_words_tfidf) , 'word from the tfidf score a
 
 
 
-#%% Save most frequent words as stopwords/ filters 
-filter_words = skewed_words # for pure freq words 
+# #%% Save most frequent words as stopwords/ filters 
+# filter_words = skewed_words # for pure freq words 
 
 
-# stop_words = skewed_words_tfidf # for pure tf-idf words 
-# write stop words 
-with open("filter_words.txt", "w") as file:
-    for s in filter_words:
-        file.write(str(s) +"\n")
+# # stop_words = skewed_words_tfidf # for pure tf-idf words 
+# # write stop words 
+# with open("filter_words.txt", "w") as file:
+#     for s in filter_words:
+#         file.write(str(s) +"\n")
         
-# read stop words 
-read_tmp = []
-with open("stop_words.txt", "r") as file:
-  for line in file:
-    read_tmp.append(line.strip())
-read_tmp = np.array(read_tmp)
+# # read stop words 
+# read_tmp = []
+# with open("stop_words.txt", "r") as file:
+#   for line in file:
+#     read_tmp.append(line.strip())
+# read_tmp = np.array(read_tmp)
 
 
     

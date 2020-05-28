@@ -29,8 +29,11 @@ import matplotlib.pyplot as plt
 max_features = 5000
 maxlen = 75 # cap to 75 
 
-use_stopwords = True
+use_stopwords = False
+stop_words_from = 'freq' # 'freq' , 'tfidf' , 'lrp'
 reduce_padding = False
+
+
 
 # total number of data points available is 63536
 data = f.Get_data(63536)
@@ -72,7 +75,8 @@ X_test_split = f.Split_sentences(X_test)
 # chose to use stopwords or not 
 if use_stopwords:
     filter_words = []
-    with open("filter_words.txt", "r") as file:
+    name = 'filter_words_' + stop_words_from +'.txt'
+    with open(name, "r") as file:
       for line in file:
         filter_words.append(line.strip())
     filter_words = np.array(filter_words)
@@ -93,7 +97,7 @@ X_test_pad = sequence.pad_sequences(X_test_seq, maxlen=maxlen, padding = 'post')
 
 #%% load a pretrained model from the models folder 
 
-model_name = '2020-05-27-09-32'
+model_name = '2020-05-27-09-52'
 path = 'C:/Users/Fredrik Möller/Documents/MPSYS/Master_thesis/Code/GIT/Thesis-backup/models'
 model = load_model(path + '/' + model_name)
 
@@ -204,10 +208,17 @@ lrp_tn = np.zeros((1, max_features))
 score_predict = model.predict_classes(X_test_pad)
 confusion = score_predict - np.expand_dims(y_test,1)
 
-lrp_per_token = np.zeros((1, max_features))
+# text_seq_pad = X_test_pad
+
+# perform LRP on the selected sentences and save the relevance per toekn in a matrix for further evaluation 
+lrp_tmp = np.zeros((1, max_features))
+lrp_per_token = np.zeros((len(X_test_pad), max_features))
+
+
 
 for idx , sent in enumerate(X_test_pad): 
-    # tmp = sent    
+    if np.mod(idx,1000) == 0: print(idx)   
+    
     sent = np.expand_dims(sent , 0 )
     emb_mat = emb_mod.predict(sent) 
     y_hat = new_mod.predict_classes(emb_mat) 
@@ -221,17 +232,17 @@ for idx , sent in enumerate(X_test_pad):
         tmp_lrp_result = lrp_result_seq[0,i]
         lrp_tmp[0,index] = lrp_tmp[0,index] + tmp_lrp_result
         
-    lrp_per_token = np.append(lrp_per_token,lrp_tmp,0)
-    
+    lrp_per_token[idx, : ] = lrp_tmp
+
     if confusion[idx] == 1: # false positive # add the lrp to the correct bin dependent on the classification score 
         lrp_fp = lrp_fp + lrp_tmp
     elif confusion[idx] == -1: # false negative 
         lrp_fn = lrp_fn + lrp_tmp
     else: # sort rest if their target is 1 or 0
         if y_test.iloc[idx]== 1:
-             lrp_tp = lrp_tp + lrp_tmp
+            lrp_tp = lrp_tp + lrp_tmp
         else:
-             lrp_tn = lrp_tn + lrp_tmp
+            lrp_tn = lrp_tn + lrp_tmp
 
 # get mean 
 lrp_fp_mean = lrp_fp.mean()
@@ -240,40 +251,48 @@ lrp_tp_mean = lrp_tp.mean()
 lrp_tn_mean = lrp_tn.mean()
 #get deviation 
 lrp_fp_std = lrp_fp.std()
-lrp_fn_std = lrp_fn.std()
+lrp_fn_std = lrp_fn.std() 
 lrp_tp_std = lrp_tp.std()
 lrp_tn_std = lrp_tn.std()
 
 #%% get the words that are stat outliers 
-lrp_N_sigma = 2 
+lrp_N_sigma = 2
 
 # FP case 
 # only loking at + sigma since pos lrp score support the wrong classification
 tmp_bool = lrp_fp >= lrp_fp_mean + lrp_N_sigma * lrp_fp_std 
-more_than_sigma= [i for i, x in enumerate(tmp_bool[0]) if x ]
-if 0 in more_than_sigma: more_than_sigma.remove(0) # remove 0 if in list since index 0 is the padding index and does not exist in the tokenizer 
-skewed_words_fp = [ t.index_word[index] for index in more_than_sigma ]
+more_than_sigma_fp = [i for i, x in enumerate(tmp_bool[0]) if x ]
+if 0 in more_than_sigma_fp: more_than_sigma_fp.remove(0) # remove 0 if in list since index 0 is the padding index and does not exist in the tokenizer 
+skewed_words_fp = [ t.index_word[index] for index in more_than_sigma_fp ]
 
 # FN case 
 # only loking at + sigma since pos lrp score support the wrong classification
 tmp_bool = lrp_fn >= lrp_fn_mean + lrp_N_sigma * lrp_fn_std 
-more_than_sigma= [i for i, x in enumerate(tmp_bool[0]) if x ]
-if 0 in more_than_sigma: more_than_sigma.remove(0)
-skewed_words_fn = [ t.index_word[index] for index in more_than_sigma]
+more_than_sigma_fn = [i for i, x in enumerate(tmp_bool[0]) if x ]
+if 0 in more_than_sigma_fn: more_than_sigma_fn.remove(0)
+skewed_words_fn = [ t.index_word[index] for index in more_than_sigma_fn]
 
 # TP case 
 # only loking at + sigma since pos lrp score support the wrong classification
 tmp_bool = lrp_tp >= lrp_tp_mean + lrp_N_sigma * lrp_tp_std 
-more_than_sigma= [i for i, x in enumerate(tmp_bool[0]) if x ]
-if 0 in more_than_sigma: more_than_sigma.remove(0)
-skewed_words_tp = [ t.index_word[index] for index in more_than_sigma]
+more_than_sigma_tp = [i for i, x in enumerate(tmp_bool[0]) if x ]
+if 0 in more_than_sigma_tp: more_than_sigma_tp.remove(0)
+skewed_words_tp = [ t.index_word[index] for index in more_than_sigma_tp]
 
 # TN case 
 # only loking at + sigma since pos lrp score support the wrong classification
 tmp_bool = lrp_tn >= lrp_tn_mean + lrp_N_sigma * lrp_tn_std 
-more_than_sigma= [i for i, x in enumerate(tmp_bool[0]) if x ]
-if 0 in more_than_sigma: more_than_sigma.remove(0)
-skewed_words_tn = [ t.index_word[index] for index in more_than_sigma]
+more_than_sigma_tn = [i for i, x in enumerate(tmp_bool[0]) if x ]
+if 0 in more_than_sigma_tn: more_than_sigma_tn.remove(0)
+skewed_words_tn = [ t.index_word[index] for index in more_than_sigma_tn]
+
+# take all skewed words supporting an erronous prediction 
+skewed_words_lrp = list(set(skewed_words_fp + skewed_words_fn))
+
+# write filter words 
+with open("filter_words_lrp.txt", "w") as file:
+    for s in skewed_words_lrp:
+        file.write(str(s) +"\n")
 
 # read stop words 
 read_tmp = []
@@ -282,8 +301,50 @@ with open("stop_words.txt", "r") as file:
     read_tmp.append(line.strip())
 stop_words = np.array(read_tmp)
 
-words_wrong_classification = list(set(skewed_words_fp + skewed_words_fn))
-words_not_in_stop_words = [w for w in words_wrong_classification if w not in stop_words]
+# words_wrong_classification = list(set(skewed_words_fp + skewed_words_fn))
+words_not_in_stop_words = [w for w in skewed_words_lrp if w not in stop_words]
+
+#%% plotting time 
+
+fig_width = 15
+fig_hight = 4 
+marker_size1 = 2 
+marker_size2 = 2
+colour = 'red'
+legend = ['LRP < mean + 2 sigma', 'LRP >= mean + 2 sigma']
+title1 = 'LRP score per index'
+title2 = 'LRP score per index w/o padding index'
+x_label = 'Tokenizer index'
+ylabel = 'LRP score'
+
+type_conf = [' (fp)' , ' (fn)' , ' (tp)' , ' (tn)']
+
+data_plot = [lrp_fp , lrp_fn , lrp_tp , lrp_tn]
+indexes_plot = [more_than_sigma_fp , more_than_sigma_fn , more_than_sigma_tp , more_than_sigma_tn]
+
+for idx , dat in enumerate(data_plot):
+    
+    plt.figure()
+    fig, ax = plt.subplots(1, 2, figsize=(fig_width,fig_hight))
+    # plot with the padding index 
+    ax[0].scatter(y=dat[0] , x = range(len(dat[0])) , s = marker_size1)
+    ax[0].scatter(y=dat[0,indexes_plot[idx]] , x = indexes_plot[idx] , s = marker_size2 , c= colour)
+    # plot without the padding index 
+    ax[1].scatter(y=dat[0,1:] , x = range(len(dat[0])-1) , s = marker_size1)
+    ax[1].scatter(y=dat[0,indexes_plot[idx]] , x = indexes_plot[idx] , s = marker_size2 , c= colour)
+    
+    ax[0].legend(legend , loc = 0)
+    ax[1].legend(legend , loc = 4)
+    
+    
+    ax[0].set_title(title1 + type_conf[idx])
+    ax[1].set_title(title2 + type_conf[idx])
+    
+    ax[0].set_xlabel(x_label)
+    ax[1].set_xlabel(x_label)
+    
+    ax[0].set_ylabel(ylabel)
+    ax[1].set_ylabel(ylabel)
 
 
 

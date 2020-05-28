@@ -55,6 +55,8 @@ model.compile(loss='mean_squared_error',
               optimizer='Adam',
               metrics=['accuracy'])
 
+
+#%%
 #% Train model, the data need to be defined from main before it is run 
 
 early_stopping = ks.callbacks.EarlyStopping(monitor = 'val_loss', patience = 2, verbose = 1, restore_best_weights= True)
