@@ -4,6 +4,7 @@ Created on Thu May  7 11:00:52 2020
 
 @author: Fredrik Möller
 """
+
 import fun_c as f 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,14 +13,17 @@ import seaborn as sns
 
 
 
-mosque_data = f.Get_mosque_data()
+# data = f.Get_mosque_data()
+data = f.Get_data(63536)
 
-X = mosque_data.iloc[:,1]
-y= mosque_data.iloc[:,0]
+
+
+X = data.iloc[:,1]
+y= data.iloc[:,0]
 
 X_split = f.Split_sentences(X)
 
-max_features = 1000
+max_features = 5000
 
 t = ks.preprocessing.text.Tokenizer(num_words = max_features)
 t.fit_on_texts(X_split)
@@ -92,13 +96,8 @@ word_mean = occurency.mean()
 indexes_skewed = []
 skewed_words = []
 nr_sigmas = 2 
-# for i in range(len(occurency[0])):
-#     if occurency[0,i] <= word_mean - nr_sigmas * word_deviation:
-#         indexes_skewed.append(i)
-#         skewed_words.append(t.index_word[i])
-#     elif occurency[0,i] >= word_mean + nr_sigmas * word_deviation:
-#         indexes_skewed.append(i)
-#         skewed_words.append(t.index_word[i])
+
+
 tmp_bool = occurency <= word_mean - nr_sigmas * word_deviation 
 less_than_sigma = [i for i, x in enumerate(tmp_bool[0]) if x]
 tmp_bool = occurency >= word_mean + nr_sigmas * word_deviation 
@@ -121,10 +120,10 @@ plt.ylabel("comparative occurence frequency between + & - class")
 plt.xlabel("Tokenizer index")
 
 
-plt.figure()
-sns.distplot(occurency)
-plt.ylabel("Dist")
-plt.xlabel("Comparative class frequency")
+# plt.figure()
+# sns.distplot(occurency)
+# plt.ylabel("Dist")
+# plt.xlabel("Comparative class frequency")
 
 
 #%% test TF-IDF
@@ -170,58 +169,70 @@ X_tfidf = vectorizer.transform(X)
 feature_names = vectorizer.get_feature_names()
 
 # create empty vectors to store the sum of tfidf scores for pos and neg class 
-tfidf_sum_pos = np.zeros([1,len(feature_names)])
-tfidf_sum_neg = np.zeros([1,len(feature_names)])
+# tfidf_sum_pos = np.zeros([1,len(feature_names)])
+# tfidf_sum_neg = np.zeros([1,len(feature_names)])
 
-# sum the tf-idf scores for each token in positive and negative class 
+# # sum the tf-idf scores for each token in positive and negative class 
+# for i in range(X_tfidf.shape[0]):
+#     sent = X_tfidf[i]
+#     target = y[i]
+#     sorted_items=sort_coo(sent.tocoo())
+
+#     if target == 0:
+#         for tup in sorted_items:
+#             index , score = tup
+#             tfidf_sum_neg[0,index] = tfidf_sum_neg[0,index] + score
+#     else:
+#         for tup in sorted_items:
+#             index , score = tup
+#             tfidf_sum_pos[0,index] = tfidf_sum_pos[0,index] + score
+tfidf_score = np.zeros([1,len(feature_names)])
 for i in range(X_tfidf.shape[0]):
     sent = X_tfidf[i]
-    target = y[i]
     sorted_items=sort_coo(sent.tocoo())
-
-    if target == 0:
-        for tup in sorted_items:
+    for tup in sorted_items:
             index , score = tup
-            tfidf_sum_neg[0,index] = tfidf_sum_neg[0,index] + score
-    else:
-        for tup in sorted_items:
-            index , score = tup
-            tfidf_sum_pos[0,index] = tfidf_sum_pos[0,index] + score
+            tfidf_score[0,index] = tfidf_score[0,index] + score
 
-# cget comparative tf-idf scores for 
-comp_tfidf = tfidf_sum_pos - tfidf_sum_neg
-tfidf_std = comp_tfidf.std()
-tfidf_mean = comp_tfidf.mean()
+# get comparative tf-idf scores for 
+# comp_tfidf = tfidf_sum_pos - tfidf_sum_neg
+tfidf_std = tfidf_score.std()
+tfidf_mean = tfidf_score.mean()
 
 # get tf-idf scores that are +- N sigmas 
 skewed_indexes_tfidf = []
 skewed_words_tfidf = []
-nr_sigmas = 2 
-for i in range(len(comp_tfidf[0])):
-    if comp_tfidf[0,i] <= tfidf_mean - nr_sigmas * tfidf_std:
+nr_sigmas = 3 
+
+for i in range(len(tfidf_score[0])):
+    if tfidf_score[0,i] >= tfidf_mean + nr_sigmas * tfidf_std:
         skewed_indexes_tfidf.append(i)
         skewed_words_tfidf.append(feature_names[i])
-    elif comp_tfidf[0,i] >= tfidf_mean + nr_sigmas * tfidf_std:
-        skewed_indexes_tfidf.append(i)
-        skewed_words_tfidf.append(feature_names[i])
+# for i in range(len(comp_tfidf[0])):
+#     if comp_tfidf[0,i] <= tfidf_mean - nr_sigmas * tfidf_std:
+#         skewed_indexes_tfidf.append(i)
+#         skewed_words_tfidf.append(feature_names[i])
+#     elif comp_tfidf[0,i] >= tfidf_mean + nr_sigmas * tfidf_std:
+#         skewed_indexes_tfidf.append(i)
+#         skewed_words_tfidf.append(feature_names[i])
 
 # pack word and comp score neatly 
 freq_result_tfidf = []
 for i in range(len(skewed_indexes_tfidf)):
-    tmp_result = [skewed_words_tfidf[i] , comp_tfidf[0,skewed_indexes_tfidf[i]]]
+    tmp_result = [skewed_words_tfidf[i] , tfidf_score[0,skewed_indexes_tfidf[i]]]
     freq_result_tfidf.append(tmp_result)
 
 # plots 
 plt.figure()
-plt.scatter(y=comp_tfidf , x = range(comp_tfidf.shape[1]) , s = 1)
+plt.scatter(y=tfidf_score , x = range(tfidf_score.shape[1]) , s = 1)
 plt.scatter(y = comp_tfidf[0,skewed_indexes_tfidf] , x = skewed_indexes_tfidf, s = 1 , c= 'red')
-plt.ylabel("Comparative summerized Tf-idf score [pos - neg]")
+plt.ylabel("Tf-idf score")
 plt.xlabel("Tf-idf tokenizer word index")
-
-plt.figure()
-sns.distplot(comp_tfidf[0])
-plt.ylabel("Dist")
-plt.xlabel("Comparative Tf-idf score")
+ 
+# plt.figure()
+# sns.distplot(tfidf_score[0])
+# plt.ylabel("Dist")
+# plt.xlabel("Comparative Tf-idf score")
 
 # keywords=extract_topn_from_vector(feature_names,sorted_items,10)
 
@@ -241,18 +252,19 @@ print(len(in_both), 'of', len(skewed_words_tfidf) , 'word from the tfidf score a
 
 
 #%% Save most frequent words as stopwords/ filters 
-# stop_words = pos_words + neg_words
-stop_words = set(skewed_words + skewed_words_tfidf)
-stop_words = list(stop_words)
+filter_words = skewed_words # for pure freq words 
+
+
+# stop_words = skewed_words_tfidf # for pure tf-idf words 
 # write stop words 
-with open("stop_words.txt", "w") as f:
-    for s in stop_words:
-        f.write(str(s) +"\n")
+with open("filter_words.txt", "w") as file:
+    for s in filter_words:
+        file.write(str(s) +"\n")
         
 # read stop words 
 read_tmp = []
-with open("stop_words.txt", "r") as f:
-  for line in f:
+with open("stop_words.txt", "r") as file:
+  for line in file:
     read_tmp.append(line.strip())
 read_tmp = np.array(read_tmp)
 

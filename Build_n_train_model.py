@@ -19,7 +19,7 @@ import datetime
 
 
 max_features = 5000
-maxlen = 400
+maxlen = len(X_train_pad[0])
 embedding_dims = 50
 filters = 250
 kernel_size = 3
@@ -55,12 +55,12 @@ model.compile(loss='mean_squared_error',
               optimizer='Adam',
               metrics=['accuracy'])
 
-#%% Train model, the data need to be defined from main before it is run 
+#% Train model, the data need to be defined from main before it is run 
 
-early_stopping = ks.callbacks.EarlyStopping(monitor = 'val_loss', patience = 3, verbose = 1, restore_best_weights= True)
+early_stopping = ks.callbacks.EarlyStopping(monitor = 'val_loss', patience = 2, verbose = 1, restore_best_weights= True)
 
-epochs = 7
-batch_size = 64
+epochs = 50
+batch_size = 256
 
 
 model.fit(X_train_pad, y_train,
@@ -70,7 +70,7 @@ model.fit(X_train_pad, y_train,
           validation_data=(X_test_pad, y_test))
 
 
-
+#%
 #% save model in the folder models 
 datetime_object = datetime.datetime.now()
 date = str(datetime_object.date())
@@ -79,5 +79,5 @@ time = time.split(':')
 time = time[0:2]
 path = 'C:/Users/Fredrik Möller/Documents/MPSYS/Master_thesis/Code/GIT/Thesis-backup/models'
 model.save(path + '/' + date + '-' + time[0] + '-' + time[1])
-
-
+print(date+'-'+time[0]+'-'+time[1])
+print('Training acc', model.history.history['acc'][-3])
