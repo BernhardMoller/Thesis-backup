@@ -11,6 +11,7 @@ import numpy as np
 from keras.preprocessing.sequence import pad_sequences
 import matplotlib.pyplot as plt
 from matplotlib import cm, transforms
+import string
 
 
 #Function that returns the raw data containing the word mosque and its labels 
@@ -20,6 +21,15 @@ def Get_mosque_data():
     mosque_data = mosque_data.dropna(how='any')
     return mosque_data
 
+def train_test_data(reduce_pad):
+    if reduce_pad:
+        data_train = pd.read_csv ('C:/Users/Fredrik Möller/Documents/MPSYS/Master_thesis/Code/GIT/Thesis-backup/train_test_data/data_train_reduce_pad', delimiter=',')
+        data_test = pd.read_csv ('C:/Users/Fredrik Möller/Documents/MPSYS/Master_thesis/Code/GIT/Thesis-backup/train_test_data/data_test_reduce_pad', delimiter=',')
+    else:    
+        data_train = pd.read_csv ('C:/Users/Fredrik Möller/Documents/MPSYS/Master_thesis/Code/GIT/Thesis-backup/train_test_data/data_train', delimiter=',')
+        data_test = pd.read_csv ('C:/Users/Fredrik Möller/Documents/MPSYS/Master_thesis/Code/GIT/Thesis-backup/train_test_data/data_test', delimiter=',')
+        
+    return  data_train , data_test 
 
 def Get_data(nr_data):
     data_all = pd.read_csv ('C:/Users/Fredrik Möller/Documents/MPSYS/Master_thesis/Code/Data/data_terrorincident_eng_26-03-2020_60k - data_terrorincident_eng_26-03-2020xxx.csv.csv', delimiter=',')
@@ -27,25 +37,32 @@ def Get_data(nr_data):
     rand_prem = np.random.permutation(len(data))
     data = data.iloc[rand_prem[:nr_data]]
     return data
+
+def remove_punct(data_split):
+    data_split_tmp= []
+    table = str.maketrans('', '', string.punctuation)
+    for sent in data_split:
+        data_split_tmp.append( [w.translate(table) for w in sent])
+    return data_split_tmp
     
 # unused ##################################
-def Train_tokenizer(data, nb_words,use_stop_words):
-    # no maximum vocal size is used, English stop words from sklearn can be used 
-    data_with_words_separated = []
-    for sent in data: 
-        # split the sentences into words 
-        words = sent.split()
-        # save split sencencs in a list 
-        data_with_words_separated.append(words)
+# def Train_tokenizer(data, nb_words,use_stop_words):
+#     # no maximum vocal size is used, English stop words from sklearn can be used 
+#     data_with_words_separated = []
+#     for sent in data: 
+#         # split the sentences into words 
+#         words = sent.split()
+#         # save split sencencs in a list 
+#         data_with_words_separated.append(words)
         
-    # setting up ad training the  on the training data. 
-    if use_stop_words == True:
-        t = ks.preprocessing.text.Tokenizer(num_words = nb_words ,filters=stop_words.ENGLISH_STOP_WORDS)
-    else:
-        t = ks.preprocessing.text.Tokenizer(num_words = nb_words)
+#     # setting up ad training the  on the training data. 
+#     if use_stop_words == True:
+#         t = ks.preprocessing.text.Tokenizer(num_words = nb_words ,filters=stop_words.ENGLISH_STOP_WORDS)
+#     else:
+#         t = ks.preprocessing.text.Tokenizer(num_words = nb_words)
     
-    t.fit_on_texts(data_with_words_separated)
-    return t
+#     t.fit_on_texts(data_with_words_separated)
+#     return t
 ###########################################
 
 def Split_sentences(data):

@@ -4,7 +4,7 @@ Created on Tue May 12 14:55:39 2020
 
 @author: Fredrik Möller
 """
-
+import string
 import keras as ks 
 from keras.models import load_model
 from keras.preprocessing import sequence
@@ -23,63 +23,53 @@ import numpy as np
 # import seaborn as sns
 import matplotlib.pyplot as plt
 
-
 #%%
 # set parameters:
 max_features = 5000
 maxlen = 75 # cap to 75 
 
-use_stopwords = False
-stop_words_from = 'freq' # 'freq' , 'tfidf' , 'lrp'
+use_word_filter = True
+pad_not_replace = False
+stop_words_from = 'freq' # 'freq' , 'tfidf' , 'lrp' ,'stop_words'
 reduce_padding = False
 
-
-
 # total number of data points available is 63536
-data = f.Get_data(63536)
 # data = f.Get_mosque_data()
 
-X = data.iloc[:,1]
-y = data.iloc[:,0]
 
+data_train , data_test = f.train_test_data(reduce_pad = reduce_padding)
 
-if reduce_padding:
-    ##preprocess to try and reduce the padding of the sentences by removing the longest sentences 
-    N_sigma_len = 3
-    
-    X_tmp = f.Split_sentences(X)
-    # create an array which contains the lengths of all sentences in X
-    X_len = np.array([len(sent) for sent in X_tmp])
-    # create a T-F array of which sentences that are shorter than +N sigmas 
-    X_ok_len = X_len <= X_len.mean() + N_sigma_len * X_len.std()
-    # get the indexes of the sentences that are sorter than N sigmas 
-    index_X_ok = [i for i, x in enumerate(X_ok_len) if x]
-    # write over the old data 
-    X = data.iloc[index_X_ok,1]
-    y = data.iloc[index_X_ok,0]
-    max_len = np.ceil(X_len.mean() + N_sigma_len * X_len.std())
+X_train = data_train['fragment']
+X_test = data_test['fragment']
 
-##
-# split into training and test data 
-
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=42)
+y_train = data_train['target']
+y_test = data_test['target']
 
 X_train_indexes = X_train.index
 X_test_indexes = X_test.index
 
-
 X_train_split = f.Split_sentences(X_train)
 X_test_split = f.Split_sentences(X_test)
 
+# remove punctuations and commas etc
+X_train_split = f.remove_punct(X_train_split)
+X_test_split = f.remove_punct(X_test_split)
+
+
 # chose to use stopwords or not 
-if use_stopwords:
+if use_word_filter:
     filter_words = []
-    name = 'filter_words_' + stop_words_from +'.txt'
+    if stop_words_from == 'stop_words':
+        name = stop_words_from + '.txt'
+    else:
+        name = 'filter_words_' + stop_words_from +'.txt'
     with open(name, "r") as file:
       for line in file:
         filter_words.append(line.strip())
     filter_words = np.array(filter_words)
+    
+    # if pad_not_replace:
+        
     t = ks.preprocessing.text.Tokenizer(num_words = max_features, filters = filter_words)
 else:
     t = ks.preprocessing.text.Tokenizer(num_words = max_features)
@@ -95,14 +85,29 @@ X_test_seq= t.texts_to_sequences(X_test_split)
 X_train_pad = sequence.pad_sequences(X_train_seq, maxlen=maxlen, padding = 'post')
 X_test_pad = sequence.pad_sequences(X_test_seq, maxlen=maxlen, padding = 'post')
 
+#%%
+# read stop words 
+read_tmp = []
+with open("stop_words.txt", "r") as file:
+  for line in file:
+    read_tmp.append(line.strip())
+stop_words = np.array(read_tmp)
+
+# words_wrong_classification = list(set(skewed_words_fp + skewed_words_fn))
+words_not_in_stop_words = [w for w in filter_words if w not in stop_words]
+
+with open("not_in_stop_words.txt", "w") as file:
+    for s in words_not_in_stop_words:
+        file.write(str(s) +"\n")
+
 #%% load a pretrained model from the models folder 
 
-model_name = '2020-05-27-09-52'
+model_name = '2020-05-29-13-28'
 path = 'C:/Users/Fredrik Möller/Documents/MPSYS/Master_thesis/Code/GIT/Thesis-backup/models'
 model = load_model(path + '/' + model_name)
 
-
 #%%
+#%
 #% # to continue a model need to either be defined, compiled, and trained from the "Build_n_train_model" script
 # or loaded from the top of this script 
 #
@@ -142,11 +147,11 @@ else:
     print('reduce padding' ,0 )
     # res.append(0)
 
-if use_stopwords:
-    print('stop words' ,1 )
+if use_word_filter:
+    print('filter words' ,1 )
     # res.append(1)
 else:
-    print('stop words' ,0 )
+    print('filter words' ,0 )
     # res.append(0)
 
 # for key in keys:
@@ -158,7 +163,7 @@ print('length test data: ' ,len(y_test))
 print('TP :', len(indexes_tp))
 print('TN :', len(indexes_tn))
 print('FP :', len(indexes_fp))
-print('FP :', len(indexes_fn))
+print('FN :', len(indexes_fn))
 res.append(1-(len(indexes_fp)+len(indexes_fn))/len(y_test))
 res.append(len(y_test))
 res.append(len(indexes_tp))
@@ -191,10 +196,12 @@ for lay in model_rest:
 new_mod.compile(optimizer = 'Adam', loss = 'mean_squared_error')
 ####
 
+epsilon = 0.0001
+
 ### create LRP analyzer 
 #% create and test analyser 
 # analyzer = inn.create_analyzer('gradient',new_mod)
-analyzer = inn.create_analyzer('lrp.epsilon',new_mod, epsilon = 0.00001)
+analyzer = inn.create_analyzer('lrp.epsilon',new_mod, epsilon = epsilon)
 # analyzer = inn.create_analyzer('lrp.alpha_2_beta_1',new_mod)
 ####
 
@@ -290,8 +297,10 @@ skewed_words_tn = [ t.index_word[index] for index in more_than_sigma_tn]
 skewed_words_lrp = list(set(skewed_words_fp + skewed_words_fn))
 
 # write filter words 
+skewed_words_tmp = skewed_words_lrp
+skewed_words_tmp.sort()
 with open("filter_words_lrp.txt", "w") as file:
-    for s in skewed_words_lrp:
+    for s in skewed_words_tmp:
         file.write(str(s) +"\n")
 
 # read stop words 
@@ -311,7 +320,7 @@ fig_hight = 4
 marker_size1 = 2 
 marker_size2 = 2
 colour = 'red'
-legend = ['LRP < mean + 2 sigma', 'LRP >= mean + 2 sigma']
+leg = ['LRP < mean + 2 sigma', 'LRP >= mean + 2 sigma']
 title1 = 'LRP score per index'
 title2 = 'LRP score per index w/o padding index'
 x_label = 'Tokenizer index'
@@ -333,8 +342,8 @@ for idx , dat in enumerate(data_plot):
     ax[1].scatter(y=dat[0,1:] , x = range(len(dat[0])-1) , s = marker_size1)
     ax[1].scatter(y=dat[0,indexes_plot[idx]] , x = indexes_plot[idx] , s = marker_size2 , c= colour)
     
-    ax[0].legend(legend , loc = 0)
-    ax[1].legend(legend , loc = 4)
+    ax[0].legend(leg , loc = 0)
+    ax[1].legend(leg , loc = 4)
     
     
     ax[0].set_title(title1 + type_conf[idx])
@@ -350,81 +359,81 @@ for idx , dat in enumerate(data_plot):
 
 #%% Get data from local indexes, convert to gobal idenxes so that they allways can be found 
 # local to global indexes 
-local_indexes = indexes_fp
-global_indexes = X_test.index[local_indexes]
-read_global = False 
-# global_indexes = [6612, ]
+# local_indexes = indexes_fp
+# global_indexes = X_test.index[local_indexes]
+# read_global = False 
+# # global_indexes = [6612, ]
 
-# read from global indexes instead of X_test 
-if read_global:
-# from global indexes perfrom preproccesseing so that the sentenes can be evaluated 
-    score_eval = []
-    text = []
-    for index in global_indexes: 
-        sample = data.loc[index]
-        score_eval.append(sample[0])
-        tmp_text = sample[1].split()
-        text.append(tmp_text)
+# # read from global indexes instead of X_test 
+# if read_global:
+# # from global indexes perfrom preproccesseing so that the sentenes can be evaluated 
+#     score_eval = []
+#     text = []
+#     for index in global_indexes: 
+#         sample = data.loc[index]
+#         score_eval.append(sample[0])
+#         tmp_text = sample[1].split()
+#         text.append(tmp_text)
         
     
     
-    text_seq = t.texts_to_sequences(text)
-    data_for_lrp = sequence.pad_sequences(text_seq, maxlen= maxlen, padding = 'post' ) # regular padding 
+#     text_seq = t.texts_to_sequences(text)
+#     data_for_lrp = sequence.pad_sequences(text_seq, maxlen= maxlen, padding = 'post' ) # regular padding 
 
-if not read_global: 
-    data_for_lrp = X_test_pad
+# if not read_global: 
+#     data_for_lrp = X_test_pad
 
-# perform LRP on the selected sentences and save the relevance per toekn in a matrix for further evaluation 
-lrp_tmp = np.zeros((1, max_features))
-lrp_per_token = np.zeros((1, max_features))
+# # perform LRP on the selected sentences and save the relevance per toekn in a matrix for further evaluation 
+# lrp_tmp = np.zeros((1, max_features))
+# lrp_per_token = np.zeros((1, max_features))
 
-for sent in data_for_lrp: 
-    # tmp = sent    
-    sent = np.expand_dims(sent , 0 )
-    emb_mat = emb_mod.predict(sent) 
-    y_hat = new_mod.predict_classes(emb_mat) 
+# for sent in data_for_lrp: 
+#     # tmp = sent    
+#     sent = np.expand_dims(sent , 0 )
+#     emb_mat = emb_mod.predict(sent) 
+#     y_hat = new_mod.predict_classes(emb_mat) 
     
-    lrp_result = analyzer.analyze(emb_mat)
-    lrp_result_seq = np.sum(lrp_result, axis = 2)
+#     lrp_result = analyzer.analyze(emb_mat)
+#     lrp_result_seq = np.sum(lrp_result, axis = 2)
     
-    lrp_tmp = np.zeros((1, max_features))
-    for i in range(np.shape(lrp_result)[1]):
-        index = sent[0,i]
-        tmp_lrp_result = lrp_result_seq[0,i]
-        lrp_tmp[0,index] = lrp_tmp[0,index] + tmp_lrp_result
+#     lrp_tmp = np.zeros((1, max_features))
+#     for i in range(np.shape(lrp_result)[1]):
+#         index = sent[0,i]
+#         tmp_lrp_result = lrp_result_seq[0,i]
+#         lrp_tmp[0,index] = lrp_tmp[0,index] + tmp_lrp_result
         
-    lrp_per_token = np.append(lrp_per_token,lrp_tmp,0)
+#     lrp_per_token = np.append(lrp_per_token,lrp_tmp,0)
 
 
 
-# sum all relevancy scores per token and get the corresponding words
+# # sum all relevancy scores per token and get the corresponding words
 
-lrp_sum = np.sum(lrp_per_token,0)
-non_zero_index = np.nonzero(lrp_sum)
+# lrp_sum = np.sum(lrp_per_token,0)
+# non_zero_index = np.nonzero(lrp_sum)
 
-lrp_sum_non_zero = lrp_sum[non_zero_index]
+# lrp_sum_non_zero = lrp_sum[non_zero_index]
 
-lrp_tokens = t.sequences_to_texts(non_zero_index)
-lrp_tokens =  f.Split_sentences(lrp_tokens)
-lrp_tokens = lrp_tokens[0]
-lrp_tokens.insert(0,'padding_token')
+# lrp_tokens = t.sequences_to_texts(non_zero_index)
+# lrp_tokens =  f.Split_sentences(lrp_tokens)
+# lrp_tokens = lrp_tokens[0]
+# lrp_tokens.insert(0,'padding_token')
 
 
-# get top N highest relevance contributers 
-N = 20
-top_N_index = lrp_sum_non_zero.argsort()[-N:]
-top_N_lrp = lrp_sum_non_zero[top_N_index]
-if 'top_N_words' not in locals():
-    top_N_words = np.array(lrp_tokens)[top_N_index]
-else:
-    np.append(top_N_words,top_N_words)
+# # get top N highest relevance contributers 
+# N = 20
+# top_N_index = lrp_sum_non_zero.argsort()[-N:]
+# top_N_lrp = lrp_sum_non_zero[top_N_index]
+# if 'top_N_words' not in locals():
+#     top_N_words = np.array(lrp_tokens)[top_N_index]
+# else:
+#     np.append(top_N_words,top_N_words)
     
-## train new tokenizer with the highest relevancies removed 
+# ## train new tokenizer with the highest relevancies removed 
 
-# tt = ks.preprocessing.text.Tokenizer(num_words = max_features, filters = top_N_words)
+# # tt = ks.preprocessing.text.Tokenizer(num_words = max_features, filters = top_N_words)
 
-# X_test_seq_new = tt.texts_to_sequences(X_test_split)
-# X_test_pad_new = sequence.pad_sequences(X_test_seq_new, maxlen=maxlen, padding = 'post')
+# # X_test_seq_new = tt.texts_to_sequences(X_test_split)
+# # X_test_pad_new = sequence.pad_sequences(X_test_seq_new, maxlen=maxlen, padding = 'post')
 
     
 #%% check to see if there is some relation between the total relevancy + and - and the distrubution of classes in the training data set 

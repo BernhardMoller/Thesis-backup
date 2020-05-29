@@ -23,6 +23,7 @@ maxlen = len(X_train_pad[0])
 embedding_dims = 50
 filters = 250
 kernel_size = 3
+# kernel_size = 50
 hidden_dims = 250
 
 
@@ -56,7 +57,7 @@ model.compile(loss='mean_squared_error',
               metrics=['accuracy'])
 
 
-#%%
+#%
 #% Train model, the data need to be defined from main before it is run 
 
 early_stopping = ks.callbacks.EarlyStopping(monitor = 'val_loss', patience = 2, verbose = 1, restore_best_weights= True)

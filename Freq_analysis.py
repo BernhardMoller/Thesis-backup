@@ -9,19 +9,26 @@ import fun_c as f
 import numpy as np
 import matplotlib.pyplot as plt
 import keras as ks
-import seaborn as sns
+# import seaborn as sns
 
 
+data_train , data_test = f.train_test_data(reduce_pad = reduce_padding)
 
-# data = f.Get_mosque_data()
-data = f.Get_data(63536)
+X_train = data_train['fragment']
+X_test = data_test['fragment']
+
+y_train = data_train['target']
+y_test = data_test['target']
 
 
-
-X = data.iloc[:,1]
-y= data.iloc[:,0]
+# what to conduct all tests on 
+X = X_train
+y = y_train
 
 X_split = f.Split_sentences(X)
+X_split = f.remove_punct(X_split)
+
+
 
 max_features = 5000
 
@@ -102,10 +109,16 @@ tmp_bool = occurency <= word_mean - nr_sigmas * word_deviation
 less_than_sigma = [i for i, x in enumerate(tmp_bool[0]) if x]
 tmp_bool = occurency >= word_mean + nr_sigmas * word_deviation 
 more_than_sigma = [i for i, x in enumerate(tmp_bool[0]) if x]
-           
+          
 skewed_indexes = less_than_sigma + more_than_sigma
+
+pos_words = [ t.index_word[index] for index in more_than_sigma ]
+neg_words = [ t.index_word[index] for index in less_than_sigma ]
+
+
 skewed_words = [ t.index_word[index] for index in skewed_indexes ]
 ###
+
 # pack word and comp score neatly 
 freq_result = []
 for i in range(len(skewed_indexes)):
@@ -114,12 +127,19 @@ for i in range(len(skewed_indexes)):
 #####
 
 plt.figure()
-plt.scatter(y=occurency , x = range(len(occurency[0])) , s = 1)
-plt.scatter(y = occurency[0,skewed_indexes] , x = skewed_indexes, s = 1 , c= 'red')
-plt.ylabel("comparative occurence frequency between + & - class")
-plt.xlabel("Tokenizer index")
+fig, ax = plt.subplots()
 
-tmp_skewed = skewed_words.sort()
+ax.scatter(y=occurency , x = range(len(occurency[0])) , s = 1, label = 'f-diff inliers' )
+ax.scatter(y = occurency[0,skewed_indexes] , x = skewed_indexes, s = 1 , c= 'red', label =  'f-diff 2 sigma outliers')
+
+ax.set_ylabel('(f + class)- (f - class)')
+ax.set_xlabel('Tokenizer index')
+ax.set_title('Comparative occurence frequency between + & - class')
+ax.legend()
+
+
+tmp_skewed = skewed_words
+tmp_skewed.sort()
 with open("filter_words_freq.txt", "w") as file:
     for s in tmp_skewed:
         file.write(str(s) +"\n")
@@ -192,51 +212,89 @@ feature_names = vectorizer.get_feature_names()
 #         for tup in sorted_items:
 #             index , score = tup
 #             tfidf_sum_pos[0,index] = tfidf_sum_pos[0,index] + score
-tfidf_score = np.zeros([1,len(feature_names)])
+tfidf_score_pos = np.zeros([1,len(feature_names)])
+tfidf_score_neg = np.zeros([1,len(feature_names)])
+
 for i in range(X_tfidf.shape[0]):
     sent = X_tfidf[i]
     sorted_items=sort_coo(sent.tocoo())
-    for tup in sorted_items:
+    if y[i] == 0:
+        for tup in sorted_items:
             index , score = tup
-            tfidf_score[0,index] = tfidf_score[0,index] + score
-
+            tfidf_score_neg[0,index] = tfidf_score_neg[0,index] + score
+    else: 
+        for tup in sorted_items:
+            index , score = tup
+            tfidf_score_pos[0,index] = tfidf_score_pos[0,index] + score
+            
 # get comparative tf-idf scores for 
 # comp_tfidf = tfidf_sum_pos - tfidf_sum_neg
-tfidf_std = tfidf_score.std()
-tfidf_mean = tfidf_score.mean()
+tfidf_std_neg = tfidf_score_neg.std()
+tfidf_mean_neg = tfidf_score_neg.mean()
+
+tfidf_std_pos = tfidf_score_pos.std()
+tfidf_mean_pos = tfidf_score_pos.mean()
 
 # get tf-idf scores that are +- N sigmas 
-skewed_indexes_tfidf = []
-skewed_words_tfidf = []
-nr_sigmas = 3 
+skewed_indexes_tfidf_neg = []
+skewed_words_tfidf_neg = []
 
-for i in range(len(tfidf_score[0])):
-    if tfidf_score[0,i] >= tfidf_mean + nr_sigmas * tfidf_std:
-        skewed_indexes_tfidf.append(i)
-        skewed_words_tfidf.append(feature_names[i])
-# for i in range(len(comp_tfidf[0])):
-#     if comp_tfidf[0,i] <= tfidf_mean - nr_sigmas * tfidf_std:
-#         skewed_indexes_tfidf.append(i)
-#         skewed_words_tfidf.append(feature_names[i])
-#     elif comp_tfidf[0,i] >= tfidf_mean + nr_sigmas * tfidf_std:
-#         skewed_indexes_tfidf.append(i)
-#         skewed_words_tfidf.append(feature_names[i])
+skewed_indexes_tfidf_pos = []
+skewed_words_tfidf_pos = []
+
+nr_sigmas = 2 
+
+for i in range(len(tfidf_score_neg[0])):
+    if tfidf_score_neg[0,i] >= tfidf_mean_neg + nr_sigmas * tfidf_std_neg:
+        skewed_indexes_tfidf_neg.append(i)
+        skewed_words_tfidf_neg.append(feature_names[i])
+
+for i in range(len(tfidf_score_pos[0])):
+    if tfidf_score_pos[0,i] >= tfidf_mean_pos + nr_sigmas * tfidf_std_pos:
+        skewed_indexes_tfidf_pos.append(i)
+        skewed_words_tfidf_pos.append(feature_names[i])
 
 # pack word and comp score neatly 
-freq_result_tfidf = []
-for i in range(len(skewed_indexes_tfidf)):
-    tmp_result = [skewed_words_tfidf[i] , tfidf_score[0,skewed_indexes_tfidf[i]]]
-    freq_result_tfidf.append(tmp_result)
+# freq_result_tfidf = []
+# for i in range(len(skewed_indexes_tfidf)):
+#     tmp_result = [skewed_words_tfidf[i] , tfidf_score[0,skewed_indexes_tfidf[i]]]
+#     freq_result_tfidf.append(tmp_result)
 
 # plots 
-plt.figure()
-plt.scatter(y=tfidf_score , x = range(tfidf_score.shape[1]) , s = 1)
-plt.scatter(y = tfidf_score[0,skewed_indexes_tfidf] , x = skewed_indexes_tfidf, s = 1 , c= 'red')
-plt.ylabel("Tf-idf score")
-plt.xlabel("Tf-idf tokenizer word index")
+# plt.figure()
+# plt.scatter(y=tfidf_score , x = range(tfidf_score.shape[1]) , s = 1)
+# plt.scatter(y = tfidf_score[0,skewed_indexes_tfidf] , x = skewed_indexes_tfidf, s = 1 , c= 'red')
+# plt.ylabel("Culm Tf-idf score")
+# plt.xlabel("Tf-idf tokenizer word index")
+# plt.title('Culmative Tf-idf score for evaluated data set')
  
-tmp_skewed = skewed_words_tfidf.sort()
+# neg class 
+plt.figure()
+fig, ax = plt.subplots()
 
+ax.scatter(y=tfidf_score_neg , x = range(tfidf_score_neg.shape[1]) , s = 1 , label = 'Tf-idf inliers')
+ax.scatter(y = tfidf_score_neg[0,skewed_indexes_tfidf_neg] , x = skewed_indexes_tfidf_neg, s = 1 , c= 'red', label = 'Tf-idf 2 sigma outliers')
+
+ax.set_ylabel('Tf-idf score')
+ax.set_xlabel('Tf-idf Tokenizer index')
+ax.set_title('Tf-idf score of negative class')
+ax.legend()
+
+# pos class 
+plt.figure()
+fig, ax = plt.subplots()
+
+ax.scatter(y=tfidf_score_pos , x = range(tfidf_score_pos.shape[1]) , s = 1 , label = 'Tf-idf inliers')
+ax.scatter(y = tfidf_score_pos[0,skewed_indexes_tfidf_pos] , x = skewed_indexes_tfidf_pos, s = 1 , c= 'red', label = 'Tf-idf 2 sigma outliers')
+
+ax.set_ylabel('Tf-idf score')
+ax.set_xlabel('Tf-idf Tokenizer index')
+ax.set_title('Tf-idf score of positive class')
+ax.legend()
+
+
+tmp_skewed = list(set(skewed_words_tfidf_neg + skewed_words_tfidf_pos))
+tmp_skewed.sort()
 with open("filter_words_tfidf.txt", "w") as file:
     for s in tmp_skewed:
         file.write(str(s) +"\n")
