@@ -12,6 +12,7 @@ from keras.preprocessing.sequence import pad_sequences
 import matplotlib.pyplot as plt
 from matplotlib import cm, transforms
 import string
+import random
 
 
 #Function that returns the raw data containing the word mosque and its labels 
@@ -37,6 +38,11 @@ def Get_data(nr_data):
     rand_prem = np.random.permutation(len(data))
     data = data.iloc[rand_prem[:nr_data]]
     return data
+
+def covert_to_lowercase(data):
+    # data need to be formated as a series object to be able to e converted
+    data = data.str.lower()
+    return data 
 
 def remove_punct(data_split):
     data_split_tmp= []
@@ -75,28 +81,92 @@ def Split_sentences(data):
         
     return data_with_words_separated
         
+def apply_word_filter_remove(data, target , filter):
+    filtered_data = []
+    filtered_target = []
+    for i , sent in enumerate(data):
+        filtered_sent = []
 
-def Matrix_from_split_data(data, max_length, lib_size, t):
-    # create empty array to store matrixes in, will be removed
-    X_train_bin_mat = np.zeros((max_length , lib_size))
-    X_train_bin_mat = np.expand_dims(X_train_bin_mat, axis = (0,3))
+        for word in sent:
+            if word in filter:
+                continue
+            else:
+                filtered_sent.append(word)
+        filtered_data.append(filtered_sent)
+        filtered_target.append(target[i])
+    return filtered_data , pd.Series(filtered_target)
+
+def apply_word_filter_drop_word(data, target , filter, dr):
+    filtered_data = []
+    filtered_target = []
+    for i , sent in enumerate(data):
+        filtered_sent = []
+
+        for word in sent:
+            if word in filter and dr > random.random(): # drop word randomly  if seed is lower than dr 
+                continue
+            else:
+                filtered_sent.append(word)
+        filtered_data.append(filtered_sent)
+        filtered_target.append(target[i])
+
+    return filtered_data , pd.Series(filtered_target)
+
+def apply_word_filter_drop_sent(data, target , filter, dr):
+    filtered_data = []
+    filtered_target = []
+    removed_index= []
+    drop_sent = False
+    for i , sent in enumerate(data):
+        for word in sent:
+            if word in filter and dr > random.random(): # drop word randomly  if seed is lower than dr 
+                drop_sent = True
+                removed_index.append(i)
+                break
+            
+        if  not drop_sent:
+            filtered_data.append(sent)
+            filtered_target.append(target[i])
+
+        else:    
+            drop_sent = False
+    return filtered_data ,  pd.Series(filtered_target) , removed_index
+
+def get_stop_words():
+    read_tmp = []
+    with open("stop_words.txt", "r") as file:
+      for line in file:
+        read_tmp.append(line.strip())
+    stop_words = np.array(read_tmp)
+    return stop_words
+
+def remove_stopwords(data):
+    stop_words = get_stop_words()
+    data = [w for w in data if w not in stop_words]
+    return data
+
+
+# def Matrix_from_split_data(data, max_length, lib_size, t):
+#     # create empty array to store matrixes in, will be removed
+#     X_train_bin_mat = np.zeros((max_length , lib_size))
+#     X_train_bin_mat = np.expand_dims(X_train_bin_mat, axis = (0,3))
     
-    # for each sentence in training data 
-    for sent in data:
-        # create a binare matrix rep
-        tmp_mat = t.texts_to_matrix(sent)
-        # transpose it due to direction of padding cannot be changed
-        tmp_mat_tp = np.transpose(tmp_mat)
-        # pad the sentence to max length of traing data 
-        tmp_mat_tp_pad = pad_sequences(tmp_mat_tp , maxlen=max_length, padding='post')
-        # transpose back to original
-        tmp_mat_pad = np.transpose(tmp_mat_tp_pad)
-        tmp_mat_pad = np.expand_dims(tmp_mat_pad, axis = (0,3))
-        # stack the matrixes in 3d to get the shape of standard image analysis format 
-        X_train_bin_mat = np.concatenate((X_train_bin_mat, tmp_mat_pad), axis = 0)
+#     # for each sentence in training data 
+#     for sent in data:
+#         # create a binare matrix rep
+#         tmp_mat = t.texts_to_matrix(sent)
+#         # transpose it due to direction of padding cannot be changed
+#         tmp_mat_tp = np.transpose(tmp_mat)
+#         # pad the sentence to max length of traing data 
+#         tmp_mat_tp_pad = pad_sequences(tmp_mat_tp , maxlen=max_length, padding='post')
+#         # transpose back to original
+#         tmp_mat_pad = np.transpose(tmp_mat_tp_pad)
+#         tmp_mat_pad = np.expand_dims(tmp_mat_pad, axis = (0,3))
+#         # stack the matrixes in 3d to get the shape of standard image analysis format 
+#         X_train_bin_mat = np.concatenate((X_train_bin_mat, tmp_mat_pad), axis = 0)
 
             
-    return X_train_bin_mat[1:,:,:,:] # return all elements except the first empty one 
+#     return X_train_bin_mat[1:,:,:,:] # return all elements except the first empty one 
 
 def Shorten_sentences(data_X , data_y , max_length): 
     # removing any sentences longer than max sentences in traing 

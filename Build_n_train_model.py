@@ -12,17 +12,18 @@ from keras.models import Sequential
 from keras.layers import Dense, Dropout
 from keras.layers import Embedding
 from keras.layers import Conv1D, GlobalMaxPooling1D
-
+import numpy as np 
 
 import datetime
 # import pandas as pd 
 
 
-max_features = 5000
+max_features = max_features
 maxlen = len(X_train_pad[0])
 embedding_dims = 50
 filters = 250
 kernel_size = 3
+
 # kernel_size = 50
 hidden_dims = 250
 
@@ -72,7 +73,7 @@ model.fit(X_train_pad, y_train,
           callbacks = [early_stopping],
           validation_data=(X_test_pad, y_test))
 
-
+#%%
 #%
 #% save model in the folder models 
 datetime_object = datetime.datetime.now()
@@ -80,7 +81,46 @@ date = str(datetime_object.date())
 time = str(datetime_object.time())
 time = time.split(':')
 time = time[0:2]
-path = 'C:/Users/Fredrik Möller/Documents/MPSYS/Master_thesis/Code/GIT/Thesis-backup/models'
+path = 'C:/Users/Fredrik Möller/Documents/MPSYS/Master_thesis/Code/GIT/Thesis-backup/models/ver'
 model.save(path + '/' + date + '-' + time[0] + '-' + time[1])
 print(date+'-'+time[0]+'-'+time[1])
 print('Training acc', model.history.history['acc'][-3])
+#%%
+#% for verification testing can remove after 
+indexes_tp = []
+indexes_tn = []
+indexes_fp = []
+indexes_fn = []
+res = []
+
+
+score_predict = model.predict_classes(X_test_pad)
+confusion = score_predict - np.expand_dims(y_test,1)
+for i in range(len(y_test)):
+    if confusion[i] == 1: # false positive 
+        indexes_fp.append(i)
+    elif confusion[i] == -1: # false negative 
+        indexes_fn.append(i)
+    else: # sort rest if their target is true or false 
+        if y_test.iloc[i]== 1:
+            indexes_tp.append(i)
+        else:
+            indexes_tn.append(i)
+
+res.append(model.history.history['acc'][-3])
+res.append(model.history.history['val_acc'][-3])
+res.append(len(y_train))
+res.append(y_train.sum()/len(y_train))
+res.append(len(y_test))
+res.append(y_test.sum()/len(y_test))
+res.append(len(indexes_tp))
+res.append(len(indexes_tn))
+res.append(len(indexes_fp))
+res.append(len(indexes_fn))
+res.append(len(indexes_tp) / (len(indexes_tp) + len(indexes_fn)))
+res.append(len(indexes_tp) / (len(indexes_tp) + len(indexes_fp)))
+
+
+
+res = np.array(res)
+res = res.reshape(1,len(res))

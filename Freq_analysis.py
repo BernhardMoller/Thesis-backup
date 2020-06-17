@@ -9,8 +9,13 @@ import fun_c as f
 import numpy as np
 import matplotlib.pyplot as plt
 import keras as ks
-# import seaborn as sns
+import seaborn as sns
 
+read_tmp = []
+with open("stop_words.txt", "r") as file:
+  for line in file:
+    read_tmp.append(line.strip())
+stop_words = np.array(read_tmp)
 
 data_train , data_test = f.train_test_data(reduce_pad = reduce_padding)
 
@@ -39,19 +44,19 @@ t.fit_on_texts(X_split)
 X_sequence = t.texts_to_sequences(X_split)
 
 
-X_matrix = t.texts_to_matrix(X_split)
+# X_matrix = t.texts_to_matrix(X_split)
 
 
-sum_word_occurence = np.sum(X_matrix,0)
+# sum_word_occurence = np.sum(X_matrix,0)
 
-nr_of_words_to_plot = 1000
-plt.figure()
-plt.plot(sum_word_occurence[1:nr_of_words_to_plot]/len(X))
-plt.xlabel("Index in tokenzer library")
-plt.ylabel("% Occurence frequency in all classes")
-x_max= nr_of_words_to_plot
-plt.axis([-100*0.1, x_max*1.1, -0.05, 1])
-plt.show()
+# nr_of_words_to_plot = 1000
+# plt.figure()
+# plt.plot(sum_word_occurence[1:nr_of_words_to_plot]/len(X))
+# plt.xlabel("Index in tokenzer library")
+# plt.ylabel("% Occurence frequency in all classes")
+# x_max= nr_of_words_to_plot
+# plt.axis([-100*0.1, x_max*1.1, -0.05, 1])
+# plt.show()
 
 #%%
 
@@ -70,6 +75,10 @@ for i in range(len(X_sequence)):
         for index in sent:
             belong_pos[0,index] = belong_pos[0,index] + 1
     
+p_word_in_pos = belong_pos / np.sum(belong_pos)
+p_word_in_neg = belong_neg / np.sum(belong_neg)
+
+
 # values over 1 indicate that the word occure more than once per sentence 
 belong_neg_normalized = belong_neg/(len(y)-y.sum())
 belong_pos_normalized = belong_pos / y.sum() 
@@ -92,7 +101,10 @@ plt.close()
 
 # take the two occurency vectors and negate one from the other. 
 # negative values indicate that the word is more frequent in the negative classification class and positive values the opposite
-occurency = belong_pos - belong_neg
+# occurency = belong_pos - belong_neg
+# occurency_index = occurency.argsort()
+
+occurency = p_word_in_pos - p_word_in_neg
 occurency_index = occurency.argsort()
 
 
@@ -102,7 +114,7 @@ word_mean = occurency.mean()
 # sort out the words that have a skewed distrubution of +- 2 sigma 
 indexes_skewed = []
 skewed_words = []
-nr_sigmas = 2 
+nr_sigmas = 3
 
 
 tmp_bool = occurency <= word_mean - nr_sigmas * word_deviation 
@@ -117,29 +129,40 @@ neg_words = [ t.index_word[index] for index in less_than_sigma ]
 
 
 skewed_words = [ t.index_word[index] for index in skewed_indexes ]
+
+#remove NLTK stopwords from found words
+skewed_words = f.remove_stopwords(skewed_words)
+# get new indexes 
+skewed_index = [t.word_index[word] for word in skewed_words]
 ###
 
 # pack word and comp score neatly 
-freq_result = []
-for i in range(len(skewed_indexes)):
-    tmp_result = (skewed_words[i] , occurency[0,skewed_indexes[i]])
-    freq_result.append(tmp_result)
-#####
+# freq_result = []
+# for i in range(len(skewed_indexes)):
+#     tmp_result = (skewed_words[i] , occurency[0,skewed_indexes[i]])
+#     freq_result.append(tmp_result)
+# #####
 
 plt.figure()
 fig, ax = plt.subplots()
 
-ax.scatter(y=occurency , x = range(len(occurency[0])) , s = 1, label = 'f-diff inliers' )
-ax.scatter(y = occurency[0,skewed_indexes] , x = skewed_indexes, s = 1 , c= 'red', label =  'f-diff 2 sigma outliers')
+ax.scatter(y=occurency , x = range(len(occurency[0])) , s = 1, label = 'NCOF inliers & stop words' )
+ax.scatter(y = occurency[0,skewed_indexes] , x = skewed_indexes, s = 1 , c= 'red', label =  'NCOF 3 sigma outliers')
 
-ax.set_ylabel('(f + class)- (f - class)')
+ax.set_ylabel('NCOF score')
 ax.set_xlabel('Tokenizer index')
-ax.set_title('Comparative occurence frequency between + & - class')
+ax.set_title('NCOF score between + & - class')
 ax.legend()
+
+
 
 
 tmp_skewed = skewed_words
 tmp_skewed.sort()
+
+tmp_skewed = [w for w in tmp_skewed if w not in stop_words]
+
+
 with open("filter_words_freq.txt", "w") as file:
     for s in tmp_skewed:
         file.write(str(s) +"\n")
@@ -242,69 +265,82 @@ skewed_words_tfidf_neg = []
 skewed_indexes_tfidf_pos = []
 skewed_words_tfidf_pos = []
 
-nr_sigmas = 2 
+nr_sigmas = 3
 
 for i in range(len(tfidf_score_neg[0])):
     if tfidf_score_neg[0,i] >= tfidf_mean_neg + nr_sigmas * tfidf_std_neg:
-        skewed_indexes_tfidf_neg.append(i)
-        skewed_words_tfidf_neg.append(feature_names[i])
+        if feature_names[i] in stop_words:
+            continue
+        else:
+            skewed_indexes_tfidf_neg.append(i)
+            skewed_words_tfidf_neg.append(feature_names[i])
 
 for i in range(len(tfidf_score_pos[0])):
     if tfidf_score_pos[0,i] >= tfidf_mean_pos + nr_sigmas * tfidf_std_pos:
-        skewed_indexes_tfidf_pos.append(i)
-        skewed_words_tfidf_pos.append(feature_names[i])
+        if feature_names[i] in stop_words:
+            continue
+        else:
+            skewed_indexes_tfidf_pos.append(i)
+            skewed_words_tfidf_pos.append(feature_names[i])
 
-# pack word and comp score neatly 
-# freq_result_tfidf = []
-# for i in range(len(skewed_indexes_tfidf)):
-#     tmp_result = [skewed_words_tfidf[i] , tfidf_score[0,skewed_indexes_tfidf[i]]]
-#     freq_result_tfidf.append(tmp_result)
 
-# plots 
-# plt.figure()
-# plt.scatter(y=tfidf_score , x = range(tfidf_score.shape[1]) , s = 1)
-# plt.scatter(y = tfidf_score[0,skewed_indexes_tfidf] , x = skewed_indexes_tfidf, s = 1 , c= 'red')
-# plt.ylabel("Culm Tf-idf score")
-# plt.xlabel("Tf-idf tokenizer word index")
-# plt.title('Culmative Tf-idf score for evaluated data set')
  
+tmp_neg_ind=set(skewed_indexes_tfidf_neg)
+tmp_pos_ind=set(skewed_indexes_tfidf_pos)
+# take the set difference the get a not in b 
+pos_ind_not_in_neg =list( tmp_pos_ind - tmp_neg_ind)
+# set difference b not in a 
+neg_ind_not_in_pos = list(tmp_neg_ind - tmp_pos_ind)
+
+
+# get indexes of word in union of pos and neg class 
+tmp_all = set(skewed_indexes_tfidf_pos)
+# get the word that are in union of pos and neg 
+tmp_union = list(tmp_all - (tmp_neg_ind ^ tmp_pos_ind))
+
+
+# get unique words for neg and pos & union 
+
+words_unique_pos = [feature_names[i] for i in pos_ind_not_in_neg]
+words_unique_neg = [feature_names[i] for i in neg_ind_not_in_pos]
+words_unique_union = [feature_names[i] for i in tmp_union]  
+
 # neg class 
 plt.figure()
 fig, ax = plt.subplots()
 
-ax.scatter(y=tfidf_score_neg , x = range(tfidf_score_neg.shape[1]) , s = 1 , label = 'Tf-idf inliers')
-ax.scatter(y = tfidf_score_neg[0,skewed_indexes_tfidf_neg] , x = skewed_indexes_tfidf_neg, s = 1 , c= 'red', label = 'Tf-idf 2 sigma outliers')
+ax.scatter(y=tfidf_score_neg , x = range(tfidf_score_neg.shape[1]) , s = 1 , label = 'Tf-idf inliers & stop words')
+ax.scatter(y = tfidf_score_neg[0,neg_ind_not_in_pos] , x = neg_ind_not_in_pos, s = 1 , c= 'red', label = 'Tf-idf 2 sigma unique neg')
+ax.scatter(y = tfidf_score_neg[0,tmp_union] , x = tmp_union, s = 1 , c= 'black', label = 'Tf-idf 2 sigma outliers, common')
 
 ax.set_ylabel('Tf-idf score')
 ax.set_xlabel('Tf-idf Tokenizer index')
-ax.set_title('Tf-idf score of negative class')
+ax.set_title('Tf-idf score of negative class, with 2 sigma outliers highlighted')
 ax.legend()
 
 # pos class 
 plt.figure()
 fig, ax = plt.subplots()
 
-ax.scatter(y=tfidf_score_pos , x = range(tfidf_score_pos.shape[1]) , s = 1 , label = 'Tf-idf inliers')
-ax.scatter(y = tfidf_score_pos[0,skewed_indexes_tfidf_pos] , x = skewed_indexes_tfidf_pos, s = 1 , c= 'red', label = 'Tf-idf 2 sigma outliers')
+ax.scatter(y=tfidf_score_pos , x = range(tfidf_score_pos.shape[1]) , s = 1 , label = 'Tf-idf inliers & stop words')
+ax.scatter(y = tfidf_score_pos[0,pos_ind_not_in_neg] , x = pos_ind_not_in_neg, s = 1 , c= 'red', label = 'Tf-idf 2 sigma outliers, unique pos')
+ax.scatter(y = tfidf_score_pos[0,tmp_union] , x = tmp_union, s = 1 , c= 'black', label = 'Tf-idf 2 sigma outliers, common')
 
 ax.set_ylabel('Tf-idf score')
 ax.set_xlabel('Tf-idf Tokenizer index')
-ax.set_title('Tf-idf score of positive class')
+ax.set_title('Tf-idf score of positive class, with 2 sigma outliers highlighted')
 ax.legend()
 
 
-tmp_skewed = list(set(skewed_words_tfidf_neg + skewed_words_tfidf_pos))
+tmp_skewed = list(set(words_unique_neg + words_unique_pos))
 tmp_skewed.sort()
 with open("filter_words_tfidf.txt", "w") as file:
     for s in tmp_skewed:
         file.write(str(s) +"\n")
 
-# plt.figure()
-# sns.distplot(tfidf_score[0])
-# plt.ylabel("Dist")
-# plt.xlabel("Comparative Tf-idf score")
-
-# keywords=extract_topn_from_vector(feature_names,sorted_items,10)
+words_unique_pos.sort()
+words_unique_neg.sort()
+words_unique_union.sort()
 
 #%% check if any word are both in the regular frequency and tfidf score 
 
@@ -321,22 +357,6 @@ print(len(in_both), 'of', len(skewed_words_tfidf) , 'word from the tfidf score a
 
 
 
-# #%% Save most frequent words as stopwords/ filters 
-# filter_words = skewed_words # for pure freq words 
-
-
-# # stop_words = skewed_words_tfidf # for pure tf-idf words 
-# # write stop words 
-# with open("filter_words.txt", "w") as file:
-#     for s in filter_words:
-#         file.write(str(s) +"\n")
-        
-# # read stop words 
-# read_tmp = []
-# with open("stop_words.txt", "r") as file:
-#   for line in file:
-#     read_tmp.append(line.strip())
-# read_tmp = np.array(read_tmp)
 
 
     

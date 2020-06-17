@@ -19,6 +19,7 @@ from sklearn.model_selection import train_test_split
 import innvestigate as inn
 import fun_c as f 
 import numpy as np
+import pandas as pd 
 
 # import seaborn as sns
 import matplotlib.pyplot as plt
@@ -28,13 +29,36 @@ import matplotlib.pyplot as plt
 max_features = 5000
 maxlen = 75 # cap to 75 
 
-use_word_filter = True
-pad_not_replace = False
-stop_words_from = 'freq' # 'freq' , 'tfidf' , 'lrp' ,'stop_words'
+use_word_filter_remove = False
+use_word_filter_drop_word = False
+use_word_filter_drop_sent = True
+
+if 1 < use_word_filter_remove + use_word_filter_drop_word + use_word_filter_drop_sent:    
+   raise Exception('More than one filter is set to be applied to the data, check settings and try again')
+
+dr = 0.1
+
+stop_words_from = 'freq' # 'freq' , 'tfidf' , 'lrp' ,'stop_words
+
+
+if use_word_filter_remove or use_word_filter_drop_word or use_word_filter_drop_sent: 
+    filter_words = []
+    name = 'filter_words_' + stop_words_from +'.txt'
+    with open(name, "r") as file:
+        for line in file:
+            filter_words.append(line.strip())
+
 reduce_padding = False
 
+
+replace_not_remove = False
+norm_token = 'Nom-Token'
 # total number of data points available is 63536
 # data = f.Get_mosque_data()
+
+# get stopwords 
+
+stop_words = f.get_stop_words()
 
 
 data_train , data_test = f.train_test_data(reduce_pad = reduce_padding)
@@ -48,34 +72,34 @@ y_test = data_test['target']
 X_train_indexes = X_train.index
 X_test_indexes = X_test.index
 
+X_train = f.covert_to_lowercase(X_train)
+X_test = f.covert_to_lowercase(X_test)
+
 X_train_split = f.Split_sentences(X_train)
 X_test_split = f.Split_sentences(X_test)
 
-# remove punctuations and commas etc
+# remove punctuations and commas, also convert to lowercase 
 X_train_split = f.remove_punct(X_train_split)
 X_test_split = f.remove_punct(X_test_split)
 
 
-# chose to use stopwords or not 
-if use_word_filter:
-    filter_words = []
-    if stop_words_from == 'stop_words':
-        name = stop_words_from + '.txt'
-    else:
-        name = 'filter_words_' + stop_words_from +'.txt'
-    with open(name, "r") as file:
-      for line in file:
-        filter_words.append(line.strip())
-    filter_words = np.array(filter_words)
-    
-    # if pad_not_replace:
-        
-    t = ks.preprocessing.text.Tokenizer(num_words = max_features, filters = filter_words)
-else:
-    t = ks.preprocessing.text.Tokenizer(num_words = max_features)
+if use_word_filter_remove:
+    X_train_split , y_train = f.apply_word_filter_remove(X_train_split, y_train , filter_words)
+    X_test_split , y_test = f.apply_word_filter_remove(X_test_split , y_test , filter_words)
 
+
+if use_word_filter_drop_word:
+    X_train_split , y_train = f.apply_word_filter_drop_word(X_train_split, y_train , filter_words , dr)
+    X_test_split , y_test = f.apply_word_filter_drop_word(X_test_split , y_test , filter_words, dr)
+    
+
+if use_word_filter_drop_sent: 
+    X_train_split , y_train , removed_index = f.apply_word_filter_drop_sent(X_train_split , y_train , filter_words , dr)
+    X_test_split , y_test , removed_index = f.apply_word_filter_drop_sent(X_test_split , y_test , filter_words, dr)
+    
 
 t = ks.preprocessing.text.Tokenizer(num_words = max_features)
+
 t.fit_on_texts(X_train_split)
 
 X_train_seq = t.texts_to_sequences(X_train_split)
@@ -84,6 +108,7 @@ X_test_seq= t.texts_to_sequences(X_test_split)
 # pad sequences to the max length 
 X_train_pad = sequence.pad_sequences(X_train_seq, maxlen=maxlen, padding = 'post')
 X_test_pad = sequence.pad_sequences(X_test_seq, maxlen=maxlen, padding = 'post')
+
 
 #%%
 # read stop words 
@@ -102,77 +127,15 @@ with open("not_in_stop_words.txt", "w") as file:
 
 #%% load a pretrained model from the models folder 
 
-model_name = '2020-05-29-13-28'
+model_name = '2020-05-29-13-28' # baseline model 
 path = 'C:/Users/Fredrik Möller/Documents/MPSYS/Master_thesis/Code/GIT/Thesis-backup/models'
+
+
+# model_name = '2020-06-16-08-58'
+# path = 'C:/Users/Fredrik Möller/Documents\MPSYS/Master_thesis/Code/GIT/Thesis-backup/models/ver'
+
 model = load_model(path + '/' + model_name)
 
-#%%
-#%
-#% # to continue a model need to either be defined, compiled, and trained from the "Build_n_train_model" script
-# or loaded from the top of this script 
-#
-# Make prediction on all the test data, sort the result into a "confusion" vector, fp-fn-tp-tn. 
-#only local indexes relating to the sentences position in X_test_pad is saved
-
-indexes_tp = []
-indexes_tn = []
-indexes_fp = []
-indexes_fn = []
-
-score_predict = model.predict_classes(X_test_pad)
-confusion = score_predict - np.expand_dims(y_test,1)
-for i in range(len(y_test)):
-    if confusion[i] == 1: # false positive 
-        indexes_fp.append(i)
-    elif confusion[i] == -1: # false negative 
-        indexes_fn.append(i)
-    else: # sort rest if their target is true or false 
-        if y_test.iloc[i]== 1:
-            indexes_tp.append(i)
-        else:
-            indexes_tn.append(i)
-            
-# print('Accuracy:' , 1-(len(indexes_fp)+len(indexes_fn))/len(y))
-
-#% print data from experiment of using stopwords and reducing padding 
-
-# keys=model.history.history.keys()
-res = []
-
-print(model_name)
-if reduce_padding:
-    print('reduce padding' ,1 )
-    # res.append(1)
-else:
-    print('reduce padding' ,0 )
-    # res.append(0)
-
-if use_word_filter:
-    print('filter words' ,1 )
-    # res.append(1)
-else:
-    print('filter words' ,0 )
-    # res.append(0)
-
-# for key in keys:
-#     value = model.history.history[key][-3] # -3 due to early stopping used during training 
-#     print(key + ':', value)
-#     res.append(value)
-print('Accuracy:' , 1-(len(indexes_fp)+len(indexes_fn))/len(y_test))
-print('length test data: ' ,len(y_test))
-print('TP :', len(indexes_tp))
-print('TN :', len(indexes_tn))
-print('FP :', len(indexes_fp))
-print('FN :', len(indexes_fn))
-res.append(1-(len(indexes_fp)+len(indexes_fn))/len(y_test))
-res.append(len(y_test))
-res.append(len(indexes_tp))
-res.append(len(indexes_tn))
-res.append(len(indexes_fp))
-res.append(len(indexes_fn))
-
-res = np.array(res)
-res = res.reshape(1,len(res))
 #%% start of LRP exploration 
 #
 #first we need need to split the trained model into two. Embedding layer and everything else. Due to the embedding layer not beeing supported in the iNNvestigate package
@@ -196,8 +159,8 @@ for lay in model_rest:
 new_mod.compile(optimizer = 'Adam', loss = 'mean_squared_error')
 ####
 
-epsilon = 0.0001
-
+epsilon = 0.01
+# epsilon = 1
 ### create LRP analyzer 
 #% create and test analyser 
 # analyzer = inn.create_analyzer('gradient',new_mod)
@@ -251,7 +214,7 @@ for idx , sent in enumerate(X_test_pad):
         else:
             lrp_tn = lrp_tn + lrp_tmp
 
-# get mean 
+# # get mean included the padding token 
 lrp_fp_mean = lrp_fp.mean()
 lrp_fn_mean = lrp_fn.mean()
 lrp_tp_mean = lrp_tp.mean()
@@ -262,8 +225,9 @@ lrp_fn_std = lrp_fn.std()
 lrp_tp_std = lrp_tp.std()
 lrp_tn_std = lrp_tn.std()
 
+
 #%% get the words that are stat outliers 
-lrp_N_sigma = 2
+lrp_N_sigma = 3
 
 # FP case 
 # only loking at + sigma since pos lrp score support the wrong classification
@@ -280,38 +244,108 @@ if 0 in more_than_sigma_fn: more_than_sigma_fn.remove(0)
 skewed_words_fn = [ t.index_word[index] for index in more_than_sigma_fn]
 
 # TP case 
-# only loking at + sigma since pos lrp score support the wrong classification
-tmp_bool = lrp_tp >= lrp_tp_mean + lrp_N_sigma * lrp_tp_std 
-more_than_sigma_tp = [i for i, x in enumerate(tmp_bool[0]) if x ]
-if 0 in more_than_sigma_tp: more_than_sigma_tp.remove(0)
-skewed_words_tp = [ t.index_word[index] for index in more_than_sigma_tp]
+# only loking at - sigma since neg lrp score oppose the correct classification
+tmp_bool = lrp_tp <= lrp_tp_mean - lrp_N_sigma * lrp_tp_std 
+less_than_sigma_tp = [i for i, x in enumerate(tmp_bool[0]) if x ]
+if 0 in less_than_sigma_tp: less_than_sigma_tp.remove(0)
+skewed_words_tp = [ t.index_word[index] for index in less_than_sigma_tp]
 
 # TN case 
-# only loking at + sigma since pos lrp score support the wrong classification
-tmp_bool = lrp_tn >= lrp_tn_mean + lrp_N_sigma * lrp_tn_std 
-more_than_sigma_tn = [i for i, x in enumerate(tmp_bool[0]) if x ]
-if 0 in more_than_sigma_tn: more_than_sigma_tn.remove(0)
-skewed_words_tn = [ t.index_word[index] for index in more_than_sigma_tn]
+# only loking at - sigma since neg lrp score oppose the correct classification
+tmp_bool = lrp_tn <= lrp_tn_mean - lrp_N_sigma * lrp_tn_std 
+less_than_sigma_tn = [i for i, x in enumerate(tmp_bool[0]) if x ]
+if 0 in less_than_sigma_tn: less_than_sigma_tn.remove(0)
+skewed_words_tn = [ t.index_word[index] for index in less_than_sigma_tn]
 
 # take all skewed words supporting an erronous prediction 
 skewed_words_lrp = list(set(skewed_words_fp + skewed_words_fn))
+# remove stopwords from filter 
+skewed_words_lrp = f.remove_stopwords(skewed_words_lrp)
 
+
+#%%
 # write filter words 
 skewed_words_tmp = skewed_words_lrp
 skewed_words_tmp.sort()
+
+
 with open("filter_words_lrp.txt", "w") as file:
     for s in skewed_words_tmp:
         file.write(str(s) +"\n")
 
-# read stop words 
-read_tmp = []
-with open("stop_words.txt", "r") as file:
-  for line in file:
-    read_tmp.append(line.strip())
-stop_words = np.array(read_tmp)
 
 # words_wrong_classification = list(set(skewed_words_fp + skewed_words_fn))
 words_not_in_stop_words = [w for w in skewed_words_lrp if w not in stop_words]
+
+#%% get lrp score per class, sorted by target
+lrp_N_sigma = 2
+
+lrp_pred_pos = lrp_tp + lrp_fp
+lrp_pred_neg = lrp_tn + lrp_fn
+
+# with the padding token 
+lrp_pos_mean = lrp_pred_pos.mean()
+lrp_neg_mean = lrp_pred_neg.mean()
+
+lrp_pos_std = lrp_pred_pos.std()
+lrp_neg_std = lrp_pred_neg.std()
+
+# pos class 
+tmp_bool = lrp_pred_pos >= lrp_pos_mean + lrp_N_sigma * lrp_pos_std 
+more_than_sigma_pos = [i for i, x in enumerate(tmp_bool[0]) if x ]
+if 0 in more_than_sigma_pos: more_than_sigma_pos.remove(0)
+skewed_words_pos = [ t.index_word[index] for index in more_than_sigma_pos]
+#neg class 
+tmp_bool = lrp_pred_neg >= lrp_neg_mean + lrp_N_sigma * lrp_neg_std 
+more_than_sigma_neg = [i for i, x in enumerate(tmp_bool[0]) if x ]
+if 0 in more_than_sigma_neg: more_than_sigma_neg.remove(0)
+skewed_words_neg = [ t.index_word[index] for index in more_than_sigma_neg]
+
+
+skewed_words_pos = f.remove_stopwords(skewed_words_pos)
+skewed_words_neg = f.remove_stopwords(skewed_words_neg)
+
+
+#%% try to get stemming on the tokenizer indexes so that LRP can be summerized for each baseword in stemmed words 
+
+from nltk.stem import PorterStemmer
+# from nltk.tokenize import sent_tokenize, word_tokenize
+
+lrp_N_sigma = 1
+
+ps = PorterStemmer()
+
+# stem all the words in the tokenizer 
+stemmed_t= []
+for i in range(1,max_features+1):
+    # tmp.append(t.index_word[i])
+    stemmed_word = ps.stem(t.index_word[i])
+    if stemmed_word not in stemmed_t:
+        stemmed_t.append(stemmed_word)
+
+
+lrp_data = lrp_fp
+lrp_stemmed_token = np.zeros([1,len(stemmed_t)])
+for i , score in enumerate(lrp_data[0]):
+    if i == 0:
+        continue
+    
+    tmp_stemmed = ps.stem(t.index_word[i])
+    for index , word in enumerate(stemmed_t):
+        if tmp_stemmed == word:
+            lrp_stemmed_token[0,index] = lrp_stemmed_token[0,index] + score
+
+lrp_stemmed_token_mean = lrp_stemmed_token.mean()
+lrp_stemmed_token_std = lrp_stemmed_token.std()
+
+tmp_bool = lrp_stemmed_token >= lrp_stemmed_token_mean + lrp_N_sigma * lrp_stemmed_token_std 
+more_than_sigma_pos = [i for i, x in enumerate(tmp_bool[0]) if x ]
+skewed_stemmed_words_support = [ stemmed_t[index] for index in more_than_sigma_pos]
+
+
+tmp_bool = lrp_stemmed_token <= lrp_stemmed_token_mean - lrp_N_sigma * lrp_stemmed_token_std 
+less_than_sigma_pos = [i for i, x in enumerate(tmp_bool[0]) if x ]
+skewed_stemmed_words_against = [ stemmed_t[index] for index in less_than_sigma_pos]
 
 #%% plotting time 
 
@@ -326,10 +360,10 @@ title2 = 'LRP score per index w/o padding index'
 x_label = 'Tokenizer index'
 ylabel = 'LRP score'
 
-type_conf = [' (fp)' , ' (fn)' , ' (tp)' , ' (tn)']
+type_conf = [' (fp)' , ' (fn)' , ' (tp)' , ' (tn)', ' (predicted pos)' , (' (prediced neg)')]
 
-data_plot = [lrp_fp , lrp_fn , lrp_tp , lrp_tn]
-indexes_plot = [more_than_sigma_fp , more_than_sigma_fn , more_than_sigma_tp , more_than_sigma_tn]
+data_plot = [lrp_fp , lrp_fn , lrp_tp , lrp_tn, lrp_pred_pos , lrp_pred_neg]
+indexes_plot = [more_than_sigma_fp , more_than_sigma_fn , less_than_sigma_tp , less_than_sigma_tn, more_than_sigma_pos, more_than_sigma_neg]
 
 for idx , dat in enumerate(data_plot):
     
@@ -436,53 +470,53 @@ for idx , dat in enumerate(data_plot):
 # # X_test_pad_new = sequence.pad_sequences(X_test_seq_new, maxlen=maxlen, padding = 'post')
 
     
-#%% check to see if there is some relation between the total relevancy + and - and the distrubution of classes in the training data set 
-names = ['TP' , 'TN' , 'FP' , 'FN']
-tmp = [indexes_tp , indexes_tn , indexes_fp, indexes_fn]
-for i in range(len(tmp)):
-    local_indexes = tmp[i]
-    global_indexes = X_test.index[local_indexes]
+# #%% check to see if there is some relation between the total relevancy + and - and the distrubution of classes in the training data set 
+# names = ['TP' , 'TN' , 'FP' , 'FN']
+# tmp = [indexes_tp , indexes_tn , indexes_fp, indexes_fn]
+# for i in range(len(tmp)):
+#     local_indexes = tmp[i]
+#     global_indexes = X_test.index[local_indexes]
     
-    # global_indexes = [6612, ]
+#     # global_indexes = [6612, ]
     
-    # from global indexes perfrom preproccesseing so that the sentenes can be evaluated 
-    score_eval = []
-    text = []
-    lrp_pos = 0
-    lrp_neg = 0
-    for index in global_indexes: 
-        sample = data.loc[index]
-        score_eval.append(sample[0])
-        tmp_text = sample[1].split()
-        text.append(tmp_text)
+#     # from global indexes perfrom preproccesseing so that the sentenes can be evaluated 
+#     score_eval = []
+#     text = []
+#     lrp_pos = 0
+#     lrp_neg = 0
+#     for index in global_indexes: 
+#         sample = data.loc[index]
+#         score_eval.append(sample[0])
+#         tmp_text = sample[1].split()
+#         text.append(tmp_text)
         
     
     
-    text_seq = t.texts_to_sequences(text)
-    text_seq_pad = sequence.pad_sequences(text_seq, maxlen= maxlen, padding = 'post' ) # regular padding 
+#     text_seq = t.texts_to_sequences(text)
+#     text_seq_pad = sequence.pad_sequences(text_seq, maxlen= maxlen, padding = 'post' ) # regular padding 
     
    
-    for sent in text_seq_pad: 
-        # tmp = sent    
-        sent = np.expand_dims(sent , 0 )
-        emb_mat = emb_mod.predict(sent) 
-        y_hat = new_mod.predict_classes(emb_mat) 
+#     for sent in text_seq_pad: 
+#         # tmp = sent    
+#         sent = np.expand_dims(sent , 0 )
+#         emb_mat = emb_mod.predict(sent) 
+#         y_hat = new_mod.predict_classes(emb_mat) 
         
-        lrp_result = analyzer.analyze(emb_mat)
-        lrp_result_seq = np.sum(lrp_result, axis = 2)
+#         lrp_result = analyzer.analyze(emb_mat)
+#         lrp_result_seq = np.sum(lrp_result, axis = 2)
         
-        for lrp in lrp_result_seq[0]:
-            if lrp <= 0:
-                lrp_min = lrp_neg + lrp
-            else:
-                lrp_pos = lrp_pos + lrp
+#         for lrp in lrp_result_seq[0]:
+#             if lrp <= 0:
+#                 lrp_min = lrp_neg + lrp
+#             else:
+#                 lrp_pos = lrp_pos + lrp
                 
-    lrp_sum = lrp_pos + np.abs(lrp_neg)
-    print(names[i])
-    # print('lrp positive =' , lrp_pos)
-    # print('lrp negative =' , lrp_min)
-    print('% devision positive= ', lrp_pos/lrp_sum )
-    print('% devision negative= ', lrp_neg/lrp_sum )
+#     lrp_sum = lrp_pos + np.abs(lrp_neg)
+#     print(names[i])
+#     # print('lrp positive =' , lrp_pos)
+#     # print('lrp negative =' , lrp_min)
+#     print('% devision positive= ', lrp_pos/lrp_sum )
+#     print('% devision negative= ', lrp_neg/lrp_sum )
     
 #%% PLOTT HEATMAP
 # test to run one input sentence first through the separate embedding layer and then the rest of the model. 
@@ -490,8 +524,8 @@ for i in range(len(tmp)):
 # indexes = intresting_data
 
 
-nr_plots = 10
-indexes = indexes_fn[:10]
+# examples of when relevance score sum is < 0 
+indexes = [402 , 374 , 375, 12, 213, 261, 295, 553]
 
 for index in indexes:
     sent = X_test_pad[index]
@@ -521,4 +555,4 @@ for index in indexes:
     
     # plot heatmap and prediction results
     f.plot_text_heatmap(text_plot, score_words ,title = ['GI: ', X_test_indexes[index]])
-    print('target =', test_target , 'predicted =' ,y_hat[0][0])
+    print('target =', test_target , 'predicted =' ,y_hat[0][0], 'index' , index)
