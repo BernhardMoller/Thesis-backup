@@ -62,7 +62,7 @@ with open("filter_words_freq.txt", "w") as file:
 #%% test TF-IDF
 # https://kavita-ganesan.com/extracting-keywords-from-text-tfidf/#.Xst37WgzaUk
 
-words_unique_pos , words_unique_neg , words_intersection , words_difference = f.Get_tfidf(data = X_train, targets = y_train , nr_sigmas = 3, plot_fig = True)
+words_unique_pos , words_unique_neg , words_intersection , words_difference = f.Get_tfidf(data = X_train, targets = y_train ,  = max_features , nr_sigmas = 3, plot_fig = True)
  
 #%% check if any word are both in the regular frequency and tfidf score 
 

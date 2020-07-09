@@ -12,7 +12,7 @@ import fun_c as f
 import numpy as np
 # import pandas as pd 
 
-# import seaborn as sns
+import seaborn as sns
 import matplotlib.pyplot as plt
 
 # logging package 
@@ -37,7 +37,7 @@ max_features = 5000
 nr_features = 5000
 maxlen = 75 # cap to 75 
 
-dr = 0.2
+dr = 0.3
 
 use_word_filter_remove = False
 use_word_filter_drop_word = False
@@ -106,16 +106,17 @@ input_vars = [use_word_filter_remove ,
               maxlen, 
               return_text]
 mosque_data = f.do_preprocess(input_vars)
-mosque_setup = False
 
 # set all mosque targets to 1 in the training data 
-# check if the index is in y_train since data can be removed 
-for index in mosque_data[5]:
-    if index in y_train.index:
-       y_train[index] = 1 
-
-X_test_pad_mosque = X_test_pad[mosque_data[6]]
-y_test_mosque = y_test[mosque_data[6]]
+# check if the index is in y_train since data can be removed
+if mosque_setup:
+    for index in mosque_data[5]:
+        if index in y_train.index:
+           y_train[index] = 1 
+    
+    X_test_pad_mosque = X_test_pad[mosque_data[6]]
+    y_test_mosque = y_test[mosque_data[6]]
+    mosque_setup = False
 
 
 # logging commands 
@@ -161,20 +162,20 @@ if not evaluate_mosque:
         Baseline_0 = load_model(path + '/' + 'Baseline_0')
         Baseline_022 = load_model(path + '/' + 'Baseline_022')
         NCOF_02 = load_model(path + '/' + 'NCOF_02')
-        TFIDF_018 = load_model(path + '/' + 'TFIDF_018')
+        TFIDF_03 = load_model(path + '/' + 'TFIDF_03')
         LRP_045 = load_model(path + '/' + 'LRP_045')
-    model_names = ['Baseline_0' , 'Baseline_022' , 'NCOF_02' , 'TFIDF_018' , 'LRP_045']
-    models = [Baseline_0 , Baseline_022 , NCOF_02 , TFIDF_018 , LRP_045]
+    model_names = ['Baseline_0' , 'Baseline_022' , 'NCOF_02' , 'LRP_045' , 'TFIDF_03']
+    models = [Baseline_0 , Baseline_022 , NCOF_02 , LRP_045 , TFIDF_03]
 else:   
     print('loading mosque trained models')
     if 'Baseline_0_mosque' not in locals():
         Baseline_0_mosque = load_model(path + '/' + 'Baseline_0_mosque')
         Baseline_022_mosque = load_model(path + '/' + 'Baseline_022_mosque')
         NCOF_02_mosque = load_model(path + '/' + 'NCOF_02_mosque')
-        TFIDF_022_mosque = load_model(path + '/' + 'TFIDF_022_mosque')
+        TFIDF_03_mosque = load_model(path + '/' + 'TFIDF_03_mosque')
         LRP_025_mosque = load_model(path + '/' + 'LRP_025_mosque')
-    model_names = ['Baseline_0_mosque' , 'Baseline_022_mosque' , 'NCOF_02_mosque' , 'TFIDF_022_mosque' , 'LRP_025_mosque']
-    models = [Baseline_0_mosque , Baseline_022_mosque , NCOF_02_mosque , TFIDF_022_mosque , LRP_025_mosque]
+    model_names = ['Baseline_0_mosque' , 'Baseline_022_mosque' , 'NCOF_02_mosque' , 'LRP_025_mosque', 'TFIDF_03_mosque']
+    models = [Baseline_0_mosque , Baseline_022_mosque , NCOF_02_mosque , LRP_025_mosque , TFIDF_03_mosque]
 
 #%%
 # # use for mosque tests 
@@ -183,6 +184,9 @@ else:
 # ###########################
 eval_data = X_test_pad_mosque
 eval_targets = y_test_mosque
+# ###########################
+# eval_data = X_test_pad
+# eval_targets = y_test
 
 print('##########################################')
 print('Calculates confusion matrix for loaded models and data')
@@ -233,17 +237,21 @@ print('get outliers for the selected lrp data')
 print('##########################################')
 words_all = []
 index_all = []
-sigma = 1
-for elm in lrp_tp_all:
+sigma = 3
+for elm in lrp_fp_all:
     elm_data = elm
     outliers_word , outliers_index = f.Get_lrp_outliers(lrp_data = elm_data , sigma = sigma, pm = 1, tokenizer = t)
     words_all.append(outliers_word)
     index_all.append(outliers_index)
 
+
+
 #%% Produce LRP analysis score for the diffrent model and make plots of them
 
 epsilon = 0.01
-element = 5 # which element in mosque test data do you want to investigate?
+element = 121 # which element in mosque test data do you want to investigate?
+# element = 145 # which element in mosque test data do you want to investigate?
+
 index = mosque_data[6][element]
 sent = X_test_pad_mosque[element]
 target = y_test_mosque[index]
@@ -295,7 +303,7 @@ emb_mod , new_mod = f.split_model(model)
 
 "calculates the lrp score per confusion quadrant for the given data"
 "If bog standard LRP application is needed set epsilon to zero"
-lrp_tp , lrp_tn , lrp_fp , lrp_fn , lrp_per_token = f.Get_LRP_per_token(model=model, emb_layer = emb_mod, other_layers = new_mod, epsilon = 0.01, data = X_test_pad, targets = y_test, nr_features = max_features)
+lrp_tp , lrp_tn , lrp_fp , lrp_fn , lrp_per_token = f.Get_LRP_per_token(model=model, emb_layer = emb_mod, other_layers = new_mod, epsilon = 0.01, data = X_train_pad, targets = y_train, nr_features = max_features)
 
 "calculate the mean of the lrp score for each conf quadrant "
 # lrp_fp_mean = lrp_fp.mean()
@@ -308,7 +316,7 @@ lrp_tp , lrp_tn , lrp_fp , lrp_fn , lrp_per_token = f.Get_LRP_per_token(model=mo
 # lrp_tp_std = lrp_tp.std()
 # lrp_tn_std = lrp_tn.std()
 
-#%% 
+#%%
 " get the N sigma outliers for each conf quadrant"
 sigma = 3
 # tp
@@ -355,7 +363,7 @@ fig_hight = 4
 marker_size1 = 2 
 marker_size2 = 2
 colour = 'red'
-leg = ['LRP < mean + 2 sigma', 'LRP >= mean + 2 sigma']
+leg = ['LRP < mean + 3 sigma', 'LRP >= mean + 3 sigma']
 title1 = 'LRP score per index'
 title2 = 'LRP score per index w/o padding index'
 x_label = 'Tokenizer index'
@@ -572,3 +580,19 @@ words_not_in_stop_words = [w for w in filter_words if w not in stop_words]
 with open("not_in_stop_words.txt", "w") as file:
     for s in words_not_in_stop_words:
         file.write(str(s) +"\n")
+#%% plot distrubution of lengths 
+
+tmp_length = [len(sent) for sent in X_train_split]
+sns.set_style("darkgrid")
+
+plt.figure()
+fig, ax = plt.subplots()
+
+sns.distplot(tmp_length, bins = 50, label = "Distrubution of sentence length")
+plt.axvline(75, 0 ,max(tmp_length), ls = '--' , c = 'red', label= "Sentence length = 75")
+
+ax.set_ylabel('% chance of sentence with length')
+ax.set_xlabel('Sentence length [words]')
+ax.set_title('Distrubution of sentence length in the training data')
+ax.legend() 
+

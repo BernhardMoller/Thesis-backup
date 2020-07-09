@@ -5,13 +5,12 @@ Created on Wed May  6 13:57:55 2020
 @author: Fredrik Möller
 """
 import pandas as pd 
-# import keras as ks 
-# from sklearn.feature_extraction import stop_words
 import numpy as np
-# from keras.preprocessing.sequence import pad_sequences
 from sklearn.feature_extraction.text import TfidfVectorizer
+
 import matplotlib.pyplot as plt
 from matplotlib import cm, transforms
+
 import string
 import random
 
@@ -245,6 +244,17 @@ def Get_NCOF(data, targets, nr_features , sigma , tokenizer, plot_fig ):
         ax.set_title('NCOF score between + & - class')
         ax.legend()
         
+        # zoomed version of the no stopwords plot
+        points = range(300)
+        plt.figure()
+        fig, ax = plt.subplots()
+        ax.scatter(y=occurency[0][points] , x = points , s = 1, label = 'NCOF inliers & stop words' )
+        ax.scatter(y = occurency[0,skewed_indexes] , x = skewed_indexes, s = 1 , c= 'red', label =  'NCOF 3 sigma outliers')
+        ax.set_ylabel('NCOF score')
+        ax.set_xlabel('Tokenizer index')
+        ax.set_title('NCOF score between + & - class, cropped')
+        ax.legend()
+        
         plt.figure()
         fig, ax = plt.subplots()
         ax.scatter(y=p_word_in_pos , x = range(len(p_word_in_pos[0])) , s = 1, label = 'Token' )
@@ -273,12 +283,12 @@ def sort_coo(coo_matrix):
 
 ##############################################################
 " calculates Tf-idf score for a given data set given two classes, can also produce plots of the results"
-def Get_tfidf(data, targets , nr_sigmas , plot_fig):
+def Get_tfidf(data, targets , nr_features,  nr_sigmas , plot_fig):
     "Data does not need to be split into seperate words"
     "nr_sigmas is at what sigma you want to feth our outliers from"
     "plot_fig is a tuple that indicates if plots should be produced "
     # create tfidf vectorizer 
-    vectorizer = TfidfVectorizer()
+    vectorizer = TfidfVectorizer(max_features = nr_features)
     vectorizer.fit(data)
     # fit vectorizer to corpus 
     X_tfidf = vectorizer.transform(data)
@@ -485,12 +495,10 @@ def Get_lrp_outliers(lrp_data , sigma , pm, tokenizer):
     else:
         outliers_index = [i for i, x in enumerate(tmp_bool[0]) if x ]
         
-        
     if 0 in outliers_index: outliers_index.remove(0) # remove 0 if in list since index 0 is the padding index and does not exist in the tokenizer 
     outliers_word = [ tokenizer.index_word[index] for index in outliers_index ]
     
     return outliers_word , outliers_index
-
 ##############################################################
 
 ##############################################################
