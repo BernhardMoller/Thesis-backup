@@ -245,6 +245,48 @@ for elm in lrp_fp_all:
     index_all.append(outliers_index)
 
 
+#%% Get a seperate summation for each token for relevance in relation to a pos or neg classification for the entirery of the training data 
+
+lrp_pos_all = lrp_tp[0] + lrp_fp[0]
+lrp_neg_all = (lrp_tn[0] + lrp_fn[0])*-1
+
+tmp_pos = np.zeros_like(lrp_pos_all)
+tmp_neg = np.zeros_like(lrp_neg_all)
+
+for i , elm in enumerate(lrp_pos_all):
+    if elm < 0:
+        tmp_neg[i] = tmp_neg[i] + elm
+    else:
+        tmp_pos[i] = tmp_pos[i] + elm
+
+for i , elm in enumerate(lrp_neg_all):
+    if elm < 0:
+        tmp_neg[i] = tmp_neg[i] + elm
+    else:
+        tmp_pos[i] = tmp_pos[i] + elm
+        
+    
+    
+def zero_to_nan(values):
+    """Replace every 0 with 'nan' and return a copy."""
+    return [float('nan') if x==0 else x for x in values]
+
+tmp_pos = zero_to_nan(tmp_pos)
+tmp_neg = zero_to_nan(tmp_neg)
+
+nr_elements = 500
+plt.figure()
+
+plt.scatter(range(1,500) , tmp_pos[1:nr_elements] , s =2)
+plt.scatter(range(1,500) , tmp_neg[1:nr_elements] , s =2)
+
+
+plt.figure()
+plt.bar(range(1,nr_elements),tmp_pos[1:nr_elements], edgecolor = 'b')
+plt.bar(range(1,nr_elements),tmp_neg[1:nr_elements], edgecolor = 'r')
+
+# plt.scatter(range(nr_points), tmp_neg[:nr_points], s = 2)
+
 
 #%% Produce LRP analysis score for the diffrent model and make plots of them
 
