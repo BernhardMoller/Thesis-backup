@@ -9,6 +9,7 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 import matplotlib.pyplot as plt
+plt.style.use('seaborn')
 from matplotlib import cm, transforms
 
 import string
@@ -210,6 +211,8 @@ def Get_NCOF(data, targets, nr_features , sigma , tokenizer, plot_fig ):
     words_pos = [ tokenizer.index_word[index] for index in more_than_sigma ]
     words_neg = [ tokenizer.index_word[index] for index in less_than_sigma ]
     
+    if '' in words_neg:
+        words_neg.remove('')
     # reassign variable 
     pos_index = more_than_sigma
     neg_index = less_than_sigma
@@ -223,13 +226,14 @@ def Get_NCOF(data, targets, nr_features , sigma , tokenizer, plot_fig ):
     
     # choose to plot figues based on input param
     if plot_fig:
+        dot = 5
         # plot of NCOF without stopwords in outliers 
         plt.figure()
         fig, ax = plt.subplots()
-        ax.scatter(y=occurency , x = range(len(occurency[0])) , s = 1, label = 'NCOF inliers & stop words' )
-        ax.scatter(y = occurency[0,skewed_indexes] , x = skewed_indexes, s = 1 , c= 'red', label =  'NCOF 3 sigma outliers')
+        ax.scatter(y=occurency , x = range(len(occurency[0])) , s = dot, label = 'NCOF inliers & stop words' )
+        ax.scatter(y = occurency[0,skewed_indexes] , x = skewed_indexes, s = dot , c= 'red', label =  'NCOF 3 sigma outliers')
         ax.set_ylabel('NCOF score')
-        ax.set_xlabel('Tokenizer index')
+        ax.set_xlabel('Integer representation index')
         ax.set_title('NCOF score between + & - class')
         ax.legend()
     
@@ -237,10 +241,10 @@ def Get_NCOF(data, targets, nr_features , sigma , tokenizer, plot_fig ):
         # plot of NCOF with stopwords in outliers 
         plt.figure()
         fig, ax = plt.subplots()
-        ax.scatter(y=occurency , x = range(len(occurency[0])) , s = 1, label = 'NCOF inliers' )
-        ax.scatter(y = occurency[0,skewed_indexes_w_stop_words] , x = skewed_indexes_w_stop_words, s = 1 , c= 'red', label =  'NCOF 3 sigma outliers & stop words')
+        ax.scatter(y=occurency , x = range(len(occurency[0])) , s = dot, label = 'NCOF inliers' )
+        ax.scatter(y = occurency[0,skewed_indexes_w_stop_words] , x = skewed_indexes_w_stop_words, s = dot , c= 'red', label =  'NCOF 3 sigma outliers & stop words')
         ax.set_ylabel('NCOF score')
-        ax.set_xlabel('Tokenizer index')
+        ax.set_xlabel('Integer representation index')
         ax.set_title('NCOF score between + & - class')
         ax.legend()
         
@@ -248,26 +252,26 @@ def Get_NCOF(data, targets, nr_features , sigma , tokenizer, plot_fig ):
         points = range(300)
         plt.figure()
         fig, ax = plt.subplots()
-        ax.scatter(y=occurency[0][points] , x = points , s = 1, label = 'NCOF inliers & stop words' )
-        ax.scatter(y = occurency[0,skewed_indexes] , x = skewed_indexes, s = 1 , c= 'red', label =  'NCOF 3 sigma outliers')
+        ax.scatter(y=occurency[0][points] , x = points , s = dot*2, label = 'NCOF inliers & stop words' )
+        ax.scatter(y = occurency[0,skewed_indexes] , x = skewed_indexes, s = dot*2 , c= 'red', label =  'NCOF 3 sigma outliers')
         ax.set_ylabel('NCOF score')
-        ax.set_xlabel('Tokenizer index')
+        ax.set_xlabel('Integer representation index')
         ax.set_title('NCOF score between + & - class, cropped')
         ax.legend()
         
         plt.figure()
         fig, ax = plt.subplots()
-        ax.scatter(y=p_word_in_pos , x = range(len(p_word_in_pos[0])) , s = 1, label = 'Token' )
+        ax.scatter(y=p_word_in_pos , x = range(len(p_word_in_pos[0])) , s = dot, label = 'Token' )
         ax.set_ylabel('NCOF score')
-        ax.set_xlabel('Tokenizer index')
+        ax.set_xlabel('Integer representation index')
         ax.set_title('NCOF score for tokens, from positive sentences')
         ax.legend()
         
         plt.figure()
         fig, ax = plt.subplots()
-        ax.scatter(y=p_word_in_neg , x = range(len(p_word_in_neg[0])) , s = 1, label = 'Token' )
+        ax.scatter(y=p_word_in_neg , x = range(len(p_word_in_neg[0])) , s = dot, label = 'Token' )
         ax.set_ylabel('NCOF score')
-        ax.set_xlabel('Tokenizer index')
+        ax.set_xlabel('TInteger representation index')
         ax.set_title('NCOF score for tokens, from negative sentences')
         ax.legend()
     
@@ -289,17 +293,20 @@ def Get_tfidf(data, targets , nr_features,  nr_sigmas , plot_fig):
     "plot_fig is a tuple that indicates if plots should be produced "
     # create tfidf vectorizer 
     vectorizer = TfidfVectorizer(max_features = nr_features)
+    print('here0')
     vectorizer.fit(data)
+    print('here')
     # fit vectorizer to corpus 
     X_tfidf = vectorizer.transform(data)
     # extract all feature names in alphabetical order 
     feature_names = vectorizer.get_feature_names()    
     # create vars for storing result
+    print('here1')
     tfidf_score_pos = np.zeros([1,len(feature_names)])
     tfidf_score_neg = np.zeros([1,len(feature_names)])
 
     # calculate tfidf score based of target of a sentence and store sum 
-    for i in range(X_tfidf.shape[0]):
+    for i , elm in enumerate(X_tfidf):
         sent = X_tfidf[i]
         sorted_items=sort_coo(sent.tocoo())
         if targets[i] == 0:
@@ -310,7 +317,7 @@ def Get_tfidf(data, targets , nr_features,  nr_sigmas , plot_fig):
             for tup in sorted_items:
                 index , score = tup
                 tfidf_score_pos[0,index] = tfidf_score_pos[0,index] + score
-                            
+    print('here2')                
     tfidf_std_neg = tfidf_score_neg.std()
     tfidf_mean_neg = tfidf_score_neg.mean()
     
@@ -365,29 +372,42 @@ def Get_tfidf(data, targets , nr_features,  nr_sigmas , plot_fig):
             file.write(str(s) +"\n")
         # get indexes of the remaining outlier words     
     
+    # print(neg_ind_not_in_pos)
+    words_unique_neg.append('new')
+    tmp_words_neg = remove_stopwords(words_unique_neg)
+    tmp_vec= []
+    
+    for i,elm in enumerate(feature_names):
+       if elm in tmp_words_neg:
+           tmp_vec.append(i)
+        
+    print(tmp_vec)
+    
     if plot_fig:
         
+        dot = 8
         # neg class 
         plt.figure()
         fig, ax = plt.subplots()
         
-        ax.scatter(y=tfidf_score_neg , x = range(tfidf_score_neg.shape[1]) , s = 1 , label = 'Tf-idf inliers & stop words')
-        ax.scatter(y = tfidf_score_neg[0,neg_ind_not_in_pos] , x = neg_ind_not_in_pos, s = 1 , c= 'red', label = 'Tf-idf 3 sigma unique neg')
-        ax.scatter(y = tfidf_score_neg[0,tmp_intersection] , x = tmp_intersection, s = 1 , c= 'black', label = 'Tf-idf 3 sigma outliers, in both')
+        
+        ax.scatter(y=tfidf_score_neg , x = range(tfidf_score_neg.shape[1]) , s = dot , label = 'Tf-idf inliers & stop words')
+        ax.scatter(y = tfidf_score_neg[0,tmp_vec] , x = tmp_vec, s = dot , c= 'red', label = 'Tf-idf 3 sigma unique neg')
+        ax.scatter(y = tfidf_score_neg[0,tmp_intersection] , x = tmp_intersection, s = dot , c= 'black', label = 'Tf-idf 3 sigma outliers, in both')
         
         ax.set_ylabel('Tf-idf score')
-        ax.set_xlabel('Tf-idf Tokenizer index')
+        ax.set_xlabel('Tf-idf Integer representation index')
         ax.set_title('Tf-idf score of negative class, with 3 sigma outliers highlighted')
         ax.legend() 
         # pos class 
         plt.figure()
         fig, ax = plt.subplots()
-        ax.scatter(y=tfidf_score_pos , x = range(tfidf_score_pos.shape[1]) , s = 1 , label = 'Tf-idf inliers & stop words')
-        ax.scatter(y = tfidf_score_pos[0,pos_ind_not_in_neg] , x = pos_ind_not_in_neg, s = 1 , c= 'red', label = 'Tf-idf 3 sigma outliers, unique pos')
-        ax.scatter(y = tfidf_score_pos[0,tmp_intersection] , x = tmp_intersection, s = 1 , c= 'black', label = 'Tf-idf 3 sigma outliers, in both')
+        ax.scatter(y=tfidf_score_pos , x = range(tfidf_score_pos.shape[1]) , s = dot , label = 'Tf-idf inliers & stop words')
+        ax.scatter(y = tfidf_score_pos[0,pos_ind_not_in_neg] , x = pos_ind_not_in_neg, s = dot , c= 'red', label = 'Tf-idf 3 sigma outliers, unique pos')
+        ax.scatter(y = tfidf_score_pos[0,tmp_intersection] , x = tmp_intersection, s = dot , c= 'black', label = 'Tf-idf 3 sigma outliers, in both')
         
         ax.set_ylabel('Tf-idf score')
-        ax.set_xlabel('Tf-idf Tokenizer index')
+        ax.set_xlabel('Tf-idf Integer representation index')
         ax.set_title('Tf-idf score of positive class, with 3 sigma outliers highlighted')
         ax.legend()
     return words_unique_pos , words_unique_neg , words_intersection , words_set_difference
@@ -663,8 +683,8 @@ def Shorten_sentences(data_X , data_y , max_length):
     return X_short , y_short , indexes
 
 
-# shamelessly borrowed function for plotting a heatmap with the relevancy scores, from iNNvestigate github repo
-def plot_text_heatmap(words, scores, title="", width=10, height=0.2, verbose=0, max_word_per_line=20, savefig = 0):
+# borrowed function for plotting a heatmap with the relevancy scores, from iNNvestigate github repo
+def plot_text_heatmap(words, scores, title="", width=25.5, height=0.9, verbose=0, max_word_per_line=20, savefig = 0):
     fig = plt.figure(figsize=(width, height))
     
     ax = plt.gca()
@@ -692,18 +712,20 @@ def plot_text_heatmap(words, scores, title="", width=10, height=0.2, verbose=0, 
         print(normalized_scores)
 
     # make sure the heatmap doesn't overlap with the title
-    loc_y = -0.2
-
+    # loc_y = -0.2
+    loc_y = 0.3
+    loc_x = 0.01
     for i, token in enumerate(tokens):
         *rgb, _ = cmap.to_rgba(normalized_scores[i], bytes=True)
         color = '#%02x%02x%02x' % tuple(rgb)
         
-        text = ax.text(0.0, loc_y, token,
+        text = ax.text(loc_x, loc_y, token,
+                       fontsize=30,
                        bbox={
                            'facecolor': color,
                            'pad': 5.0,
                            'linewidth': 1,
-                           'boxstyle': 'round,pad=0.5'
+                           'boxstyle': 'round,pad=0.4'
                        }, transform=t)
 
         text.draw(canvas.get_renderer())
@@ -711,14 +733,18 @@ def plot_text_heatmap(words, scores, title="", width=10, height=0.2, verbose=0, 
         
         # create a new line if the line exceeds the length
         if (i+1) % max_word_per_line == 0:
-            loc_y = loc_y -  2.5
+            loc_y = loc_y + 5
             t = ax.transData
         else:
-            t = transforms.offset_copy(text._transform, x=ex.width+15, units='dots')
+            t = transforms.offset_copy(text._transform, x=ex.width+60 , units='dots')
 
     if verbose == 0:
         ax.axis('off')
         
+    if savefig:
+        print('saving:' , title)
+        path = 'C:/Users/Fredrik Möller/Documents/MPSYS/Master_thesis/raport figs/'
+        plt.savefig(path+title+'.jpg', format='jpg')
     return fig 
 
 

@@ -18,8 +18,15 @@ import matplotlib.pyplot as plt
 # logging package 
 # import logging
 
+from sklearn.model_selection import train_test_split
+import pandas as pd
+from keras.preprocessing import sequence
 
 
+
+
+        
+        
 #%% load a pretrained model from the models folder 
 
 model_name = '2020-05-29-13-28' # baseline model 
@@ -37,7 +44,7 @@ max_features = 5000
 nr_features = 5000
 maxlen = 75 # cap to 75 
 
-dr = 0.3
+dr = 0.05
 
 use_word_filter_remove = False
 use_word_filter_drop_word = False
@@ -46,7 +53,7 @@ mosque_setup = False
 reduce_padding = False
 return_text = False
 
-stop_words_from = 'tfidf' # 'freq' , 'tfidf' , 'lrp' ,'stop_words
+stop_words_from = 'lrp' # 'freq' , 'tfidf' , 'lrp' ,'stop_words
 
 
 if 1 < use_word_filter_remove + use_word_filter_drop_word + use_word_filter_drop_sent:    
@@ -67,16 +74,15 @@ input_vars = [use_word_filter_remove ,
               use_word_filter_drop_sent ,
               filter_words ,
               dr,
-              mosque_setup ,
+              mosque_setup,
               reduce_padding , 
               max_features , 
               maxlen, 
               return_text]
 
 X_train_pad , y_train , X_test_pad , y_test , t = f.do_preprocess(input_vars)
-use_word_filter_drop_sent = False
 
-
+# use_word_filter_drop_sent = False
 return_text = True
 input_vars = [use_word_filter_remove ,
               use_word_filter_drop_word ,
@@ -146,10 +152,54 @@ if mosque_setup:
 
 # X_train_pad =  tmp
 # y_train = pd.Series(filtered_target)
-  
+#%% USE ONLY THIS SECTION IF YOUR WANT TO REMOVE ALL AUTO ANNOTATED DATA FROM THE SET 
+import pandas as pd
+from keras.preprocessing import sequence
+
+
+path = 'C:/Users/Fredrik Möller/Documents/MPSYS/Master_thesis/Code/Data/data_terrorincident_eng_26-03-2020_60k - data_terrorincident_eng_26-03-2020xxx.csv.csv'
+
+data_all = pd.read_csv (path)
+
+auto_ann_data =  data_all[data_all['label']!='generaldata']
+
+auto_text = auto_ann_data['fragment']
+auto_targets= auto_ann_data['score']
+
+
+
+auto_text = f.covert_to_lowercase(auto_text)
+auto_text = f.Split_sentences(auto_text)
+auto_text = f.remove_punct(auto_text)
+
+X_train_split , X_test_split , y_train , y_test = train_test_split(auto_text , auto_targets , test_size=0.33)
+
+
+y_train = y_train.reset_index(drop=True)
+y_test = y_test.reset_index(drop=True)
+
+X_train_seq = t.texts_to_sequences(X_train_split)
+X_test_seq = t.texts_to_sequences(X_test_split)
+
+
+X_train_pad = sequence.pad_sequences(X_train_seq,maxlen = maxlen, padding = 'post')
+X_test_pad = sequence.pad_sequences(X_test_seq,maxlen = maxlen, padding = 'post')
+#%%
+# stop_words_from = 'tfidf' # 'freq' , 'tfidf' , 'lrp' ,'stop_words
+# name = 'filter_words_' + stop_words_from +'.txt'
+# with open(name, "r") as file:
+#     for line in file:
+#         filter_words.append(line.strip())
+# dr = 0.09
+# X_train_split , y_train , removed_index = f.apply_word_filter_drop_sent(X_train_split , y_train , filter_words , dr)
+
+# X_train_seq = t.texts_to_sequences(X_train_split)
+# X_test_seq = t.texts_to_sequences(X_test_split)
+# X_train_pad = sequence.pad_sequences(X_train_seq,maxlen = maxlen, padding = 'post')
+# X_test_pad = sequence.pad_sequences(X_test_seq,maxlen = maxlen, padding = 'post')
 
 #%% Check which framgent have bee n worngfullt classified. 
-
+#################### START OF MOSQUE ANALYSIS 
 
 evaluate_mosque = True
 print('##########################################')
@@ -166,7 +216,7 @@ if not evaluate_mosque:
         LRP_045 = load_model(path + '/' + 'LRP_045')
     model_names = ['Baseline_0' , 'Baseline_022' , 'NCOF_02' , 'LRP_045' , 'TFIDF_03']
     models = [Baseline_0 , Baseline_022 , NCOF_02 , LRP_045 , TFIDF_03]
-else:   
+else:
     print('loading mosque trained models')
     if 'Baseline_0_mosque' not in locals():
         Baseline_0_mosque = load_model(path + '/' + 'Baseline_0_mosque')
@@ -196,7 +246,7 @@ for i , mod in enumerate(models):
     print('Starting evaluation of model ' , str(mod), '(', str(i + 1) , '/', str(len(models)),')' )
     y_hat = mod.predict_classes(eval_data)
     res_pred[:,i] = y_hat.squeeze()
-    
+
 # -1 = FN , 1 = FP , 0 = correct predicted
 confusion_all = res_pred - np.expand_dims(eval_targets,1)
 
@@ -211,7 +261,7 @@ for  i , line in enumerate(confusion_all): # for each row in confusion
         
     elif np.all(line[0] != line[2:]):
         index_in_filter.append(i)
-
+#%%
 # get the summerized lrp score for mosque data
 print('##########################################')
 print('get the summerized lrp score for mosque data')
@@ -288,11 +338,13 @@ plt.bar(range(1,nr_elements),tmp_neg[1:nr_elements], edgecolor = 'r')
 # plt.scatter(range(nr_points), tmp_neg[:nr_points], s = 2)
 
 
-#%% Produce LRP analysis score for the diffrent model and make plots of them
+#%% Produce LRP analysis score for the diffrent models and make plots of them
 
 epsilon = 0.01
-element = 121 # which element in mosque test data do you want to investigate?
+# element = 121 # which element in mosque test data do you want to investigate?
 # element = 145 # which element in mosque test data do you want to investigate?
+# element = 210
+element = 250
 
 index = mosque_data[6][element]
 sent = X_test_pad_mosque[element]
@@ -326,19 +378,21 @@ words = np.expand_dims(words,0)
 presentable_results = np.concatenate((words,lrp_mod_all),0)
 
 for j , elm in enumerate(lrp_mod_all):
-    f.plot_text_heatmap(words[0], elm , title = model_names[j])
+    f.plot_text_heatmap(words[0], elm , title = model_names[j], savefig=1)
     
-print('target: ', str(target))
-print('predicted: ', str(res_pred[element]))
-print('confusion: ', str(confusion_all[element]))
+# print('target: ', str(target))
+# print('predicted: ', str(res_pred[element]))
+# print('confusion: ', str(confusion_all[element]))
 
 #%%
 wrong_target = []
 for i , line in enumerate(confusion_all):
     if line[0]==1 and line[4] == 0:
         wrong_target.append(i)
-
-#%% Produces LRP score for the test data based on the model in var explorer
+        
+        
+##################################### END OF MOSQUE ANALYSIS 
+#%% Produces LRP score for the training data based on the model in var explorer
 
 "seperate the embedding layer from the rest of the layers since the embedding layer does comply to back propagation regulations"
 emb_mod , new_mod = f.split_model(model)
@@ -369,6 +423,23 @@ tn_word , tn_index = f.Get_lrp_outliers(lrp_data =  lrp_tn, sigma = sigma , pm =
 fp_word , fp_index = f.Get_lrp_outliers(lrp_data =  lrp_fp, sigma = sigma , pm = 1, tokenizer = t)
 # fn
 fn_word , fn_index = f.Get_lrp_outliers(lrp_data =  lrp_fn, sigma = sigma , pm = 1, tokenizer = t)
+
+
+a = f.remove_stopwords(tp_word)
+b = f.remove_stopwords(tn_word)
+c = f.remove_stopwords(fp_word)
+d = f.remove_stopwords(fn_word)
+e = set(a).intersection(set(c))
+
+tmp = 0
+count = 0
+for index , elm in enumerate(X_train_pad):
+    if t.word_index['car'] in elm:
+        count = count + 1
+        if y_train[index] == 1:
+            tmp = tmp +1
+
+
 
 "summerize the outliers from FP and FN to the LRP filter"
 "Presentes the result as aplhabetically sorted"
@@ -402,13 +473,13 @@ fn_lemma_words , fn_lemma_index = f.Get_lemma_lrp(lrp_data = lrp_fn , sigma = si
 
 fig_width = 15
 fig_hight = 4 
-marker_size1 = 2 
-marker_size2 = 2
+marker_size1 = 6 
+marker_size2 = 6
 colour = 'red'
 leg = ['LRP < mean + 3 sigma', 'LRP >= mean + 3 sigma']
 title1 = 'LRP score per index'
 title2 = 'LRP score per index w/o padding index'
-x_label = 'Tokenizer index'
+x_label = 'Integer representation index'
 ylabel = 'LRP score'
 
 type_conf = [' (fp)' , ' (fn)' , ' (tp)' , ' (tn)', ' (predicted pos)' , ' (prediced neg)']

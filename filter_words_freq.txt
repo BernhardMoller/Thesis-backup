@@ -1,4 +1,3 @@
-
 attack
 bomb
 bomber
@@ -13,6 +12,7 @@ killed
 killing
 kills
 least
+mosque
 near
 others
 people

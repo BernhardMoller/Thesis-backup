@@ -16,7 +16,7 @@ import numpy as np
 
 import datetime
 # import pandas as pd 
-eval = False
+eval = True
 save_mod = False
 res_all = np.empty([5,12])
 for tst in range(1):

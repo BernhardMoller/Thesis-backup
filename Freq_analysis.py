@@ -10,6 +10,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import keras as ks
 import seaborn as sns
+max_features = 5000
+
+
 
 read_tmp = []
 with open("stop_words.txt", "r") as file:
@@ -28,20 +31,13 @@ X_train = data_train['fragment']
 
 # what to conduct all tests on 
 X = X_train
-# y = y_train
 
-# X_split = f.Split_sentences(X)
-# X_split = f.remove_punct(X_split)
-
-
-
-# max_features = 5000
-
-# t = ks.preprocessing.text.Tokenizer(num_words = max_features)
-# t.fit_on_texts(X_split)
-
-
-# X_sequence = t.texts_to_sequences(X_split)
+# if only manually annotated data is wanted 
+# X = X[index_train]
+# # X.reset_index()
+# X = X.reset_index(drop=True)
+# # y_train.reset_index()
+# y_train = y_train.reset_index(drop=True)
 
 
 #%% calcualte NCOF 
@@ -55,6 +51,21 @@ words_pos , words_neg , pos_index , neg_index , skewed_words ,skewed_indexes = f
 tmp_skewed = skewed_words
 tmp_skewed.sort()
 
+nr_pos = len(f.remove_stopwords(words_pos))
+nr_neg = 0
+labels= 'Positive' , 'Negative'
+sizes = [nr_pos , nr_neg]
+explode = [ 0 , 0]
+
+fig1, ax1 = plt.subplots()
+ax1.pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%',
+        shadow=True)
+ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+ax1.set_title('Distrubution of word class origin, NCOF filter')
+
+plt.show()
+
+
 with open("filter_words_freq.txt", "w") as file:
     for s in tmp_skewed:
         file.write(str(s) +"\n")
@@ -62,8 +73,40 @@ with open("filter_words_freq.txt", "w") as file:
 #%% test TF-IDF
 # https://kavita-ganesan.com/extracting-keywords-from-text-tfidf/#.Xst37WgzaUk
 
-words_unique_pos , words_unique_neg , words_intersection , words_difference = f.Get_tfidf(data = X_train, targets = y_train ,  = max_features , nr_sigmas = 3, plot_fig = True)
- 
+words_unique_pos , words_unique_neg , words_intersection , words_difference = f.Get_tfidf(data = X, targets = y_train , nr_features = max_features , nr_sigmas = 3, plot_fig = True)
+ #%%
+nr_pos = len(f.remove_stopwords(words_unique_pos))
+nr_neg = len(f.remove_stopwords(words_unique_neg))
+nr_intersection = len(f.remove_stopwords(words_intersection))
+
+labels= 'Positive' , 'Negative' , 'Common to both classes'
+sizes = [nr_pos , nr_neg , nr_intersection]
+explode = [ 0 , 0 , 0]
+
+fig1, ax1 = plt.subplots()
+ax1.pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%',
+        shadow=True)
+ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+ax1.set_title('Distrubution of outlier origin TF-IDF')
+plt.show()
+
+
+nr_pos_1 = len(f.remove_stopwords(words_unique_pos))
+nr_neg_1 = len(f.remove_stopwords(words_unique_neg))
+
+labels= 'Positive' , 'Negative'
+sizes = [nr_pos , nr_neg]
+explode = [ 0 , 0]
+
+fig1, ax1 = plt.subplots()
+ax1.pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%',
+        shadow=True)
+ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+ax1.set_title('Distrubution of word class origin, TF-IDF filter')
+plt.show()
+
+
+
 #%% check if any word are both in the regular frequency and tfidf score 
 
 in_both=[]
