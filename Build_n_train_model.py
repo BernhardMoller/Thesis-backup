@@ -39,7 +39,6 @@ for tst in range(1):
                         embedding_dims,
                         input_length=maxlen))
     model.add(Dropout(0.2))
-    
     # word group filters of size filter_length:
     model.add(Conv1D(filters,
                      kernel_size,
@@ -49,7 +48,6 @@ for tst in range(1):
                      ))
     # we use max pooling:
     model.add(GlobalMaxPooling1D())
-    
     # We add vanilla fully connected layer:
     model.add(Dense(hidden_dims, activation = 'relu'))
     model.add(Dropout(0.2))
